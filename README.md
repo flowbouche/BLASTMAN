@@ -22,3 +22,9 @@ Several directories must be located in the same directory as the model ('.nlogo'
   
   * spread-infection
   * spread-infection.exe
+
+  #### /output
+  A directory where all model outputs (results) are created.
+  
+  #### /output/rasters
+  A directory specifically for raster model outputs ('maps' of the landscape)
