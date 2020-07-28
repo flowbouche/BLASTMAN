@@ -3,7 +3,7 @@ The BLack STain root disease landscape MANagement model (BLASTMAN) is an agent-b
 
 Adam J. Bouché developed this model under the guidance of Dr. Klaus J. Puettmann and Dr. David C. Shaw as a thesis for a Master of Science (MS) degree in Forest Ecosystems and Society at Oregon State University between 2017 and 2020. The thesis text can be found at [ScholarsArchive@OSU](https://ir.library.oregonstate.edu/concern/graduate_thesis_or_dissertations/c247f0268?locale=en).
 
-This model also relies on a program developed by Mario Vega at the located at [this repository](https://github.com/mariowhowrites/spread-infection).
+This model also relies on the ['spread infection' program](https://github.com/mariowhowrites/spread-infection) written in Go designed by Adam Bouché and developed by Mario Vega .
 
 ## USING THE MODEL ON YOUR COMPUTER
 Several directories must be located in the same directory as the model ('.nlogo'):
