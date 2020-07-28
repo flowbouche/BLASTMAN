@@ -11,14 +11,14 @@ Several directories must be located in the same directory as the model ('.nlogo'
   #### /supporting_files
   A directory containing all of the '.nls' files used by the main model file, including:
 
-  * **basic_functions_1.10.0.0.nls**
-  * **insect-attraction_1.10.0.0.nls**
-  * **probability_parameters_1.10.0.0.nls**
-  * **ring_lists_1.10.0.0.nls**
-  * **spread-infection_Go_1.10.0.0.nls**
+  * basic_functions_1.10.0.0.nls
+  * insect-attraction_1.10.0.0.nls
+  * probability_parameters_1.10.0.0.nls
+  * ring_lists_1.10.0.0.nls
+  * spread-infection_Go_1.10.0.0.nls
 
   #### /supporting_files/programs/program_og
-  A directory called 'programs' containing a subdirectory 'program_og' that contains the binary executable of the Go program 'spread-infection' designed by Adam Bouché and written by Mario Vega.
+  A directory called 'programs' containing a subdirectory 'program_og' that contains the binary executables of the Go program 'spread-infection' designed by Adam Bouché and written by Mario Vega.
   
   * spread-infection
   * spread-infection.exe
