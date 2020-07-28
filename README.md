@@ -19,4 +19,5 @@ Several directories must be located in the same directory as the model ('.nlogo'
 
   #### /supporting_files/programs/program_og
   A directory called 'programs' containing a subdirectory 'program_og' that contains the binary executable of the Go program 'spread-infection' designed by Adam Bouché and written by Mario Vega. 
-  
+    * spread-infection
+    * spread-infection.exe
