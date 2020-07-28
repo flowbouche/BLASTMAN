@@ -1,4 +1,4 @@
-# BLASTMAN
+# Black stain root disease landscape management model: BLASTMAN
 The BLack STain root disease landscape forest MANagement model (BLASTMAN) is an agent-based model implemented in NetLogo, R, and Go that simulates forest management disturbances (i.e., thinnings and clear-cut regeneration harvests) and the spread of a tree disease in forested landscapes.
 
 Adam J. Bouché developed this model under the guidance of Dr. Klaus J. Puettmann and Dr. David C. Shaw as a thesis for a Master of Science (MS) degree in Forest Ecosystems and Society at Oregon State University between 2017 and 2020. The thesis text can be found at [ScholarsArchive@OSU](https://ir.library.oregonstate.edu/concern/graduate_thesis_or_dissertations/c247f0268?locale=en).
