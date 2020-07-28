@@ -10,6 +10,7 @@ Several directories must be located in the same directory as the model ('.nlogo'
 
 #### /supporting_files
 A directory containing all of the '.nls' files used by the main model file, including:
+
   **basic_functions_1.10.0.0.nls
   insect-attraction_1.10.0.0.nls
   probability_parameters_1.10.0.0.nls
