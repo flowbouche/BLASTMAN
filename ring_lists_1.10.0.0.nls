@@ -1,0 +1,93 @@
+; Developed by: Adam J Bouché for a Master of Science Thesis in Forest Ecosystems and Society at Oregon State University
+; 2017 - 2020
+
+; FILE STORES LONG LIST OF RING GLOBALS FOR STORING RELATIVE COORDINATES;
+; USED TO PROJECT INFECTION PROBABILITIES AND ATTRACTION
+globals [
+  ; Lists of coordinates for each distance ring used for spreading infection and attraction
+  ring-list_root        ; a list of the coordinates of all rings used for root infection,  stored for quick access
+  ring-list_dispersal   ; a list of the coordinates of all rings used for insect dispersal,  stored for quick access
+  ring-list_attraction  ; a list of the coordinates of all rings used for insect attraction, stored for quick access
+]
+
+; Determine the distances (in cells, 1 cell ~= 1.524 m) for the spread and attraction processes
+to set-max-cell-distances ; To set the maximum distance to which infection can spread
+  set intercell-distance 1.524
+
+  ; INFECTION SPREAD: ROOT EXTENT
+  set max-root-distance_short-rotation_cell  4   ; Max cell distance transmission for roots (short-rotation stands == 4 cell dists)
+  set max-root-distance_long-rotation_cell   3   ; Max cell distance transmission for roots (long-rotation stands == 3 cell dists)
+  ;set max-root-distance_cell     ( round ( max-root-distance_m / intercell-distance ) ) ; Not used for short-rotation and long-rotation mgmt, where spread is limited to the distances above by the arrangement of trees
+  
+  ; INFECTION SPREAD: INSECT DISPERSAL
+  set max-insect-distance_SC_cell   ( round ( max-insect-distance_SC_m   / intercell-distance ) )
+  set max-insect-distance_PF_cell   ( round ( max-insect-distance_PF_m   / intercell-distance ) )
+  set max-insect-distance_HN_cell   ( round ( max-insect-distance_HN_m   / intercell-distance ) )
+
+  ; Get the highest of the cell distances for spread to find the max spread distance (in cells)
+  set max-inf-spread-distance_cell ( max ( list max-root-distance_long-rotation_cell max-root-distance_short-rotation_cell max-insect-distance_SC_cell max-insect-distance_PF_cell max-insect-distance_HN_cell ) ) ; take the highest value, set global ; CHECK: used?
+
+  ; ATTRACTION ; check implement
+  set max-attraction-distance_cell ( round ( max-attraction-distance_m  / intercell-distance ) ) ; max distance for insect attraction: 15 m / 49.2 ft / 10 cells
+end
+
+; SET COORDINATES FOR INFECTION SPREAD
+
+; NEWEST, BEST METHOD ( JAN 2020 )
+
+; Define a function that generates the coordinates for each ring based on this algorithm I developed...
+to setup_generate-ring-list-function_R
+  r:eval ( word
+    "generate.multiple.rings <- function ( ringRange ) { \n"
+    "coordSeq <- list() \n"
+  
+    "for ( thisRing in ringRange ) { \n"
+      ; For ring 1, different rules apply:
+      "if ( thisRing == 1 ) {  coordSeq <- append( coordSeq, list( list(  c( 0, 1 ), c( 0, -1 ), c( 1, 0.5 ), c( 1, -0.5 ), c( -1, 0.5 ), c( -1, -0.5 ) ) ) ) } \n"
+      
+      "if ( thisRing > 1 ) { \n"                               ; For all rings after ring1
+        "xseq1 <- seq( 0, thisRing, 1)  \n"                    ; Generate the x sequence
+        "yseq1 <- seq( thisRing, thisRing/2, -0.5)  \n"
+        "yseq2 <- seq( ( thisRing / 2 - 1 ), 0, -1 )   \n"
+        "len.yseq2 <- length(yseq2) \n"
+        "xseq2 <- rep( thisRing , len.yseq2 )  \n"        
+        "xseq <- c(xseq1, xseq2) \n"
+        "yseq <- c(yseq1, yseq2) \n"
+        "xseq.full <- c(xseq,  xseq, -xseq, -xseq)        \n"
+        "yseq.full <- c(yseq, -yseq,  yseq, -yseq)       \n"
+        "coordSeq <- append( coordSeq, list(unique(mapply(c, xseq.full, yseq.full, SIMPLIFY = F)))) \n"
+      "} \n"
+    "} \n"
+    "return(coordSeq) \n"
+  "} \n"
+  )
+end
+
+to set-ring-lists_R
+  set-max-cell-distances                 ; Find the max rings necessary based on spread distance settings
+  setup_generate-ring-list-function_R   ; Define the function used to generate the rings in R
+  
+  
+  ; If using go procedure:
+  ifelse spread-infection-version? = "Go" [
+    ; Store ring list as variable in R
+    r:eval ( word "ring.list <- generate.multiple.rings(1:" max-inf-spread-distance_cell ")" )
+    ; Export ring list if spreading infection with Go program
+  ]
+  [
+    if ( not is-list? ring-list_dispersal ) OR ( length ring-list_dispersal < max-inf-spread-distance_cell ) [  ; If not a list or IF the list is not long enough
+      set ring-list_dispersal ( r:get ( word "generate.multiple.rings(1:" max-inf-spread-distance_cell ")" ) )
+      ; FIX: don't even store this later once program is running @ full capacity
+    ]
+  ]
+  
+  if max-attraction-distance_m > 0 [
+    set ring-list_attraction ( r:get ( word "generate.multiple.rings(1:" max-attraction-distance_cell ")" ) )
+  ]
+  if max-root-distance_m > 0 [
+    set ring-list_root ( r:get ( word "generate.multiple.rings(1:" max-root-distance_short-rotation_cell ")" ) )
+  ]
+  
+  ; IF no spread, clear lists
+  if not spread-setup? [ set ring-list_dispersal  [] set ring-list_attraction [] ]
+end

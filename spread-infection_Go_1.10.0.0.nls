@@ -1,0 +1,303 @@
+; Developed by: Adam J. Bouché for a Master of Science Thesis in Forest Ecosystems and Society at Oregon State University
+; 2017 - 2020
+
+; Go program for spreading infection written by collaborator Mario Vega
+
+globals [ spread-infection-solution ]
+
+;________________________________________________________________
+;   SETUP
+;________________________________________________________________
+; Setting up the spread-infection program for NetLogo
+
+; setup a directory
+to create-spread-infection-directory
+  r:eval "library(jsonlite)"                    ; Read in library
+  r:eval (word "worldWidth <- " world-width )   ; store world width for Go program
+  
+  if run-id = 0 or run-id = "" [   ; if there's no run id
+    set run-id ( word "r" random 100000 )
+  ]
+  
+  ; Set directories and paths to find the go program
+  if comp = "cgrb"     [ r:eval "programsDir <- \"/raid1/home/pi/bouchea/models/supporting_files/programs\"" ]
+  if comp = "law"      [ r:eval "programsDir <- \"/home/bouchea/models/supporting_files/programs\""  ]
+  if comp = "asus-big" [ r:eval "programsDir <- \"D:/AdamB/Documents/Masters/Thesis/Modeling/Models/BSRD_NetLogo/BSRD-full-model/supporting_files/programs\"" ]
+  print ( word "programsDir: " r:get "programsDir")
+
+  ; Create a new directory ---- create a new directory with the run id
+  r:eval ( word "runProgramDir <- file.path(programsDir, \"" run-id "\")" )              ; new directory to create
+  print ( word "Run program directory: any directory here? " r:get "file.exists(runProgramDir)" )
+  r:eval "dir.create(runProgramDir)"
+  print ( word "Run program directory: how about now? " r:get "file.exists(runProgramDir)" )
+  ; Set the new program path and copy the file (different program name for linux vs. windows)
+  ifelse ( comp = "cgrb" OR comp = "law" ) [
+    r:eval "ogProgramPath <- file.path(programsDir, \"program_og\", \"spread-infection\")"          ; original program path
+    r:eval ( word "runProgramPath <- file.path(runProgramDir, \"spread-infection\")" )                           ; path to the copy of the program
+  ] 
+  [
+    r:eval "ogProgramPath <- file.path(programsDir, \"program_og\", \"spread-infection.exe\")"                   ; original program path
+    r:eval ( word "runProgramPath <- file.path(runProgramDir, \"spread-infection.exe\")" )
+  ]
+  print ( word "ogProgPath: " r:get "ogProgramPath" )
+  print ( word "runProgramPath: " r:get "runProgramDir")
+  ; Copy the program to the new directory
+  r:eval "file.copy(ogProgramPath, runProgramPath, copy.mode = T)"
+  print ( word "program in directory? " r:get "file.exists(runProgramPath)" )
+end
+
+; set run program directory
+to set-run-program-directories
+  r:eval "library(jsonlite)"
+  r:eval (word "worldWidth <- " world-width )   ; store world width for Go program
+  
+  if run-id = 0 or run-id = "" [   ; if there's no run id
+    set run-id ( word "r" random 100000 )
+  ]
+  
+  if comp = "law"      [ r:eval "programsDir <- \"/home/bouchea/models/supporting_files/programs\""  ]
+  if comp = "asus-big" [ r:eval "programsDir <- \"D:/AdamB/Documents/Masters/Thesis/Modeling/Models/BSRD_NetLogo/BSRD-full-model/supporting_files/programs\"" ]
+  print ( word "programsDir: " r:get "programsDir")
+  r:eval ( word "runProgramDir <- file.path(programsDir, \"" run-id "\")" )              ; new directory to create
+  ifelse ( comp = "cgrb" OR comp = "law" ) [
+    r:eval "ogProgramPath <- file.path(programsDir, \"program_og\", \"spread-infection\")"          ; original program path
+    r:eval ( word "runProgramPath <- file.path(runProgramDir, \"spread-infection\")" )                           ; path to the copy of the program
+  ] 
+  [
+    r:eval "ogProgramPath <- file.path(programsDir, \"program_og\", \"spread-infection.exe\")"                   ; original program path
+    r:eval ( word "runProgramPath <- file.path(runProgramDir, \"spread-infection.exe\")" )
+  ]
+end
+
+to write-spread-infection-ouputs_initial
+  r:eval "library(jsonlite)"
+  
+  ; RING LIST
+  export-ring-list-json
+  r:eval "rm(ring.list)"
+
+  ; PROBABILITY LISTS
+  export-probs-json
+  r:eval "rm(prob_SC_list)"
+  ifelse not probability-correction? [ 
+    r:eval "rm(prob_PF_list)"
+    r:eval "rm(prob_HN_list)"
+  ]
+  [
+    r:eval "rm(prob_PF_HN_list)"
+  ]
+  
+  ; POTENTIAL TREES
+  export-potentialTrees-json
+  if export-potential-trees? [ r:eval "rm(potentialTreeCoords)" ]
+end
+
+
+to write-spread-infection-outputs
+  r:eval "library(jsonlite)"
+ 
+  ; RING LIST: put this code into the ring file/ just add storing the ring to the current code
+;  export-ring-list-json
+  ; CHECK: DELETE REDUNDANCY
+  ; ring-list => done in "set-ring-list_R"
+  
+  ; PROBABILITY LISTS
+  export-probs-json
+
+  ; TREE COORDINATE LISTS: potential trees output coordinates
+  export-potentialTrees-json
+
+
+  ; TREE COORDINATE LISTS: newly-infected trees
+  export-newly-infected-trees-json
+
+  ; TREE COORDINATE LISTS: losing-infection trees
+  export-losing-infection-trees-json
+
+  ifelse R-clear-environment? [
+  ]
+  [
+    r:eval "rm(potentialTreeCoords)"
+    r:eval "rm(newlyInfectedTreeCoords)"
+    r:eval "rm(losingInfectionTreeCoords)"
+    r:eval "rm(prob_SC_list)"
+    ifelse not probability-correction? [ ; DELETE after testing
+      r:eval "rm(prob_PF_list)"
+      r:eval "rm(prob_HN_list)"
+    ]
+    [ r:eval "rm(prob_PF_HN_list)" ]
+    ;  r:eval "rm(ring.list)"
+  ]
+  if R-gc? [ r:eval "gc()" ]
+end
+
+; RING LIST: put this code into the ring file/ just add storing the ring to the current code
+to export-ring-list-json
+  r:eval "ringList_path <- file.path(runProgramDir,\"ring_list.json\")" 
+  r:eval "write_json(ring.list, ringList_path)"
+  print ( word "ring-list in directory? " r:get "file.exists(ringList_path)" )
+  r:eval "rm(ring.list)"  
+end
+
+; TREE COORDINATE LISTS: potential trees output coordinates
+to export-potentialTrees-json
+  ifelse export-potential-trees? [
+    ifelse any? trees_potential [
+      ( r:putagentdf "potentialTreeCoords" ( trees_potential ) "xcor" "ycor" )
+      r:eval "write_json(unname(potentialTreeCoords), file.path(runProgramDir, \"potential_trees.json\"))"
+      
+    ]
+    [ print "No potential trees. Run impossible." stop ]
+  ]
+  [ r:eval "write_json(list(), file.path(runProgramDir, \"potential_trees.json\"))" ]
+  
+   print ( word "potential_trees file in directory? " r:get "file.exists(file.path(runProgramDir, \"potential_trees.json\"))" )
+end
+
+; PROBABILITY LISTS
+to export-probs-json   ; PROBABILITY LISTS
+  ; Prob insect dispersal: S. carinatus 
+  ( r:put "prob_SC_list" prob-insect-dispersal_SC_list )
+  r:eval "write_json( as.vector(prob_SC_list), file.path(runProgramDir, \"prob_SC_list.json\"))"
+  print ( word "prob_SC file in directory? " r:get "file.exists(file.path(runProgramDir, \"prob_SC_list.json\"))" )
+ 
+  ; Prob insect dispersal: P. fasciatus and H. nigrinus
+  ifelse not probability-correction? [ ; DELETE after testing
+    r:put "prob_PF_list" prob-insect-dispersal_PF_list
+    r:put "prob_HN_list" prob-insect-dispersal_HN_list
+    r:eval "write_json( as.vector(prob_PF_list), file.path(runProgramDir, \"prob_PF_list.json\"))"
+    r:eval "write_json( as.vector(prob_HN_list), file.path(runProgramDir, \"prob_HN_list.json\"))"
+    print ( word "prob_PF file in directory? " r:get "file.exists(file.path(runProgramDir, \"prob_PF_list.json\"))" )
+    print ( word "prob_HN file in directory? " r:get "file.exists(file.path(runProgramDir, \"prob_HN_list.json\"))" )
+  ]
+  [
+    r:put "prob_PF_HN_list" prob-insect-dispersal_PF_HN_list
+    r:eval "write_json( as.vector(prob_PF_HN_list), file.path(runProgramDir, \"prob_PF_HN_list.json\"))"
+    print ( word "prob_PF_HN file in directory? " r:get "file.exists(file.path(runProgramDir, \"prob_PF_HN_list.json\"))" )
+  ]
+end
+
+; TREE COORDINATE LISTS: newly-infected trees
+to export-newly-infected-trees-json
+  set-run-program-directories
+  ifelse ( is-agentset? trees_newly-infected AND any? trees_newly-infected ) [
+    ( r:putagentdf "newlyInfectedTreeCoords" ( trees_newly-infected ) "xcor" "ycor" )
+    r:eval "write_json(unname(newlyInfectedTreeCoords), file.path(runProgramDir, \"trees_newly_infected.json\"))"
+  ]
+  [ r:eval "write_json(list(), file.path(runProgramDir, \"trees_newly_infected.json\"))" ]
+  r:eval "rm(newlyInfectedTreeCoords)"
+  print ( word "trees_newly_infected file in directory? " r:get "file.exists(file.path(runProgramDir, \"trees_newly_infected.json\"))" )
+end
+
+; TREE COORDINATE LISTS: losing-infection trees
+to export-losing-infection-trees-json
+  set-run-program-directories
+  ifelse ( is-agentset? trees_newly-infected AND any? trees_losing-infection ) [
+    ( r:putagentdf "losingInfectionTreeCoords" ( trees_losing-infection ) "xcor" "ycor" )
+    r:eval "write_json(unname(losingInfectionTreeCoords), file.path(runProgramDir, \"trees_losing_infection.json\"))"
+  ]
+  [ r:eval "write_json(list(), file.path(runProgramDir, \"trees_losing_infection.json\"))" ]
+  r:eval "rm(losingInfectionTreeCoords)"
+  print ( word "trees_losing_infection file in directory? " r:get "file.exists(file.path(runProgramDir, \"trees_losing_infection.json\"))" )
+end
+
+to delete-program-directory
+  set-run-program-directories
+  r:eval "unlink(runProgramDir, recursive = T)"
+end
+
+;________________________________________________________________
+;   USING THE SPREAD-INFECTION PROGRAM
+;________________________________________________________________
+
+to run-spread-infection_Go
+  ; model found at path stored in R: runProgramPath
+  carefully [
+    if R-clear-environment? [   ; if clearing R env, set the runpath
+      r:eval "library(jsonlite)"
+      ; set go program directories
+      set-run-program-directories
+    ]
+  ] [ print "ERROR during go -> project-infection -> run-spread-infection_Go -> clear-R-environment" print error-message set export-rasters? false set export-tree-data? false set kill-run? true stop ]
+  carefully [
+    ifelse set-Go-solution_direct? [
+      set spread-infection-solution r:get "fromJSON( paste( system2( runProgramPath, stdout = T, args = worldWidth), collapse = \"\"), simplifyDataFrame = F, simplifyVector =  F, auto.unbox = T)"
+    ]
+    [
+      r:eval "solution <- paste( system2( runProgramPath, stdout = T, args = worldWidth), collapse = \"\")"
+      ;print ( word "raw output:\n" r:get "solution" ); DELETE
+      print ( word "Go -> R - Success - Program run, solution stored" )
+      r:eval "solution <- fromJSON(solution, simplifyDataFrame = F, simplifyVector =  F, auto.unbox = T)"
+      print ( word "R JSON -> R FORMAT - Success -> program output converted from JSON to R" )
+      ;print ( word "converted from json:\n" r:get "solution" ); DELETE
+      set spread-infection-solution r:get "solution" ; bring the solution from R -> NetLogo
+    ]
+    r:eval "rm(solution)"
+    if R-clear-environment? [ r:clear ]
+    if R-gc? [ r:gc ]
+
+    print ( word "R -> NetLogo - Solution stored in NetLogo list \"spread-infection-solution\"" )
+  ]
+  [ print "ERROR in project-infection -> run-spread-infection_Go" print error-message set export-rasters? false set export-tree-data? false set kill-run? true stop]
+  
+end
+
+; Apply the solution output from the Go program to update the union of the probability of insect dispersal for all trees in the dispersal radius
+to apply-solution_Go
+  carefully [
+    print "Applying Go solution in NetLogo: INITIALIZE"
+    foreach spread-infection-solution [ this-entry ->
+      print (this-entry)
+      ask cells at-points ( item 0 this-entry ) [
+        let probs ( item 1 this-entry )
+        set prob-insect-disp_sum_SC ( prob-insect-disp_sum_SC + (item 0 probs) )
+        set prob-insect-disp_sum_PF ( prob-insect-disp_sum_PF + (item 1 probs) )
+        set prob-insect-disp_sum_HN ( prob-insect-disp_sum_HN + (item 2 probs) )
+  ;      set recalc-insect? true
+      ]
+    ]
+    ; Clear lists
+    set spread-infection-solution []
+    r:eval "rm(solution)"
+    print "Applying Go solution in NetLogo: COMPLETE"
+  ] [ print "ERROR project-infection -> apply-solution_Go" print error-message set kill-run? true stop ]
+end
+
+; Apply the solution output from the Go program to update the union of the probability of insect dispersal for all trees in the dispersal radius
+to apply-solution_Go_correction ; incomplete
+  carefully [
+    print "Applying Go solution in NetLogo: INITIALIZE"
+    foreach spread-infection-solution [ this-entry ->
+      print (this-entry)
+      ask cells at-points ( item 0 this-entry ) [
+        let output_values ( item 1 this-entry )
+        set prob-insect-disp_sum_SC ( prob-insect-disp_sum_SC + (item 0 output_values) )
+        set n-infected-trees-disp-radius_SC ( n-infected-trees-disp-radius_SC + (item 1 output_values ) ) ; CHECK to make sure the order is correct for ALL
+        set prob-insect-disp_sum_PF ( prob-insect-disp_sum_PF + (item 2 output_values ) ) ; CHECK to make sure the order is correct for ALL
+        set prob-insect-disp_sum_HN ( prob-insect-disp_sum_HN + (item 2 output_values ) ) ; FIX Same probability for PF and HN. Might as well combine and save work?
+        set n-infected-trees-disp-radius_PF ( n-infected-trees-disp-radius_PF + (item 3 output_values ) ) ; CHECK to make sure the order is correct for ALL
+        set n-infected-trees-disp-radius_HN ( n-infected-trees-disp-radius_HN + (item 3 output_values ) ) ; CHECK to make sure the order is correct for ALL
+  ;      set recalc-insect? true
+      ]
+    ]
+    ; Clear lists
+    set spread-infection-solution []
+    r:eval "rm(solution)"
+    print "Applying Go solution in NetLogo: COMPLETE"
+  ] [ print "ERROR project-infection -> apply-solution_Go" print error-message set kill-run? true stop ]
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

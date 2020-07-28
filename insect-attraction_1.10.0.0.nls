@@ -1,0 +1,464 @@
+; Adam Bouché
+; INSECT ATTRACTION FUNCTIONS
+; min last update: 1/4/2020
+
+globals [
+    
+  ; LISTS FOR APPLYING AND REMOVING ATTRACTION
+  thin-0yr-ago 
+  thin-1yr-ago
+  thin-2yr-ago
+  thin-3yr-ago
+  harv-0yr-ago
+  harv-1yr-ago
+  harv-2yr-ago
+  harv-3yr-ago
+  
+  prob-attr-dead-loss
+]
+
+;~~~~~~~ ROAD ATTRACTION ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+to add-attr-road
+  if max-attraction-distance_m > 0 [
+    ask cells with [ road? ] [                   ; ask road cells
+      ; ADD ROAD ATTRACTION TO NEIGHBORS
+      ; Ask all road cells to set the attraction for cells in each ring up to max attraction distance
+      let current-distance_m intercell-distance                                                                               ; Set the starting ring to 1 cell distance
+      foreach ring-list_attraction [ this-ring ->                                                                             ; For each distance ring,
+        let attr-road_to-set ( attraction-distance-decay_FUNCTION ( one-of attr-effect_road_list ) ( current-distance_m ) )   ; draw a road attraction value from the list and run through distance decay equation,
+        ask cells at-points this-ring [ if potential-tree? and attr-road_to-set > attr-road [ set attr-road attr-road_to-set ] ]                  ; apply that value to each cell in the ring
+        set current-distance_m ( current-distance_m + intercell-distance )                                                    ; add to the distance for the next ring
+      ]
+    ]
+  ]
+end
+
+;~~~~~~~ MGMT ATTRACTION ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+;~~~~~~~~~~~~~~~ ADD mgmt attraction ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+to add-attr-mgmt_thin [ input_thinned-stands_pct_list input_thinned-stands_ct1_list input_thinned-stands_ct2_list ]
+  if max-attraction-distance_m > 0 [
+    ; ADD ATTRACTION HERE: All trees in thinned stand (proportional to amount of trees harvested) and adjacent stands
+    ; CHECK - Use thin list to do this?
+    ; if infection is being spread
+    if ( length input_thinned-stands_pct_list > 0 ) [                        ; If there are stands that were PCT'd
+      ask trees_current with [ member? stand-id input_thinned-stands_pct_list ] [    ; Have all trees in those stands (because if it's a thinning, the effect will wear off)
+        set stand-w-thin-disturbance? true                                                         ; mark as having been thinned
+        set attr-mgmt        ( lput ( one-of attr-effect_mgmt_ext-thin-pct_list ) attr-mgmt )  ; set their mgmt attraction to a value from the pct list
+        set attr-mgmt_source ( lput stand-id attr-mgmt_source )                                       ; set the mgmt attraction source stand to their own stand id
+        if edge? [                                                                                                                               ; PROJECT TO NEARBY STANDS FROM EDGE CELLS
+          let current-distance_m intercell-distance                                                                                              ; Set the starting ring to 1 cell distance
+          foreach ring-list_attraction [ this-ring ->                                                                                            ; For each distance ring,
+            let attr-mgmt_to-set ( attraction-distance-decay_FUNCTION ( one-of attr-effect_mgmt_ext-thin-pct_list ) ( current-distance_m ) )     ; draw an attraction value from the list and run through distance decay equation,
+            ask cells at-points this-ring [
+              if potential-tree? [
+                let source-stand-id ( [ stand-id ] of myself )                            ; Store the stand-id of the attraction source (edge in mgmt-affected stand)
+                if ( stand-id != [ stand-id ] of myself ) [                                 ; IF in another stand
+                  ifelse ( member? source-stand-id attr-mgmt_source ) [                       ; IF this cell is already made attractive by the stand applying attraction
+                    let value-position   ( position source-stand-id attr-mgmt_source )          ; find the position at which the attraction value is stored in the attr-mgmt lists
+                    if ( ( item value-position attr-mgmt ) < attr-mgmt_to-set ) [               ; IF the current value is LOWER than the value to set
+                      set attr-mgmt ( replace-item value-position attr-mgmt attr-mgmt_to-set )    ; Change the value to the higher value (w/out changing attr-mgmt_source)
+                    ]
+                  ]
+                  ; ELSE: just set the value by adding to the list
+                  [ set attr-mgmt ( lput attr-mgmt_to-set attr-mgmt )                          ; add the attr value to the end of the list
+                    set attr-mgmt_source ( lput ( [ stand-id ] of myself ) attr-mgmt_source )  ; and add the source to the end of the list
+                  ]
+                ]
+              ]
+            ]
+            set current-distance_m ( current-distance_m + intercell-distance )                                                                   ; add to the distance for the next ring
+          ]
+        ]
+      ]
+    ]
+    if ( length input_thinned-stands_ct1_list > 0 ) [                        ; If there are stands that were CT'd (1)
+      ask trees_current with [ member? stand-id input_thinned-stands_ct1_list ] [    ; Have all trees in those stands (because if it's a thinning, the effect will wear off)
+        set stand-w-thin-disturbance? true                                                         ; mark as having been thinned
+        set attr-mgmt        ( lput ( one-of attr-effect_mgmt_ext-thin-ct1_list ) attr-mgmt )      ; set their mgmt attraction to a value from the ct1 list
+        set attr-mgmt_source ( lput stand-id attr-mgmt_source )                                    ; set the mgmt attraction source stand to their own stand id
+        if edge? [                                                                                                                               ; PROJECT TO NEARBY STANDS FROM EDGE CELLS
+          let current-distance_m intercell-distance                                                                                              ; Set the starting ring to 1 cell distance
+          foreach ring-list_attraction [ this-ring ->                                                                                            ; For each distance ring,
+            let attr-mgmt_to-set ( attraction-distance-decay_FUNCTION ( one-of attr-effect_mgmt_ext-thin-ct1_list ) ( current-distance_m ) )     ; draw an attraction value from the list and run through distance decay equation,
+            ask cells at-points this-ring [
+              if potential-tree? [
+                let source-stand-id ( [ stand-id ] of myself )                            ; Store the stand-id of the attraction source (edge in mgmt-affected stand)
+                if ( stand-id != [ stand-id ] of myself ) [                                 ; IF in another stand
+                  ifelse ( member? source-stand-id attr-mgmt_source ) [                       ; IF this cell is already made attractive by the stand applying attraction
+                    let value-position   ( position source-stand-id attr-mgmt_source )          ; find the position at which the attraction value is stored in the attr-mgmt lists
+                    if ( ( item value-position attr-mgmt ) < attr-mgmt_to-set ) [               ; IF the current value is LOWER than the value to set
+                      set attr-mgmt ( replace-item value-position attr-mgmt attr-mgmt_to-set )    ; Change the value to the higher value (w/out changing attr-mgmt_source)
+                    ]
+                  ]
+                  ; ELSE: just set the value by adding to the list
+                  [ set attr-mgmt ( lput attr-mgmt_to-set attr-mgmt )                          ; add the attr value to the end of the list
+                    set attr-mgmt_source ( lput ( [ stand-id ] of myself ) attr-mgmt_source )  ; and add the source to the end of the list
+                  ]
+                ]
+              ]
+            ]
+            set current-distance_m ( current-distance_m + intercell-distance )                                                                   ; add to the distance for the next ring
+          ]
+        ]
+      ]
+    ]
+    if ( length input_thinned-stands_ct2_list > 0 ) [                      ; If there are stands that were ct2'd
+      ask trees_current with [ member? stand-id input_thinned-stands_ct2_list ] [    ; Have all trees in those stands (because if it's a thinning, the effect will wear off)
+        set stand-w-thin-disturbance? true                                                         ; mark as having been thinned
+        set attr-mgmt ( lput ( one-of attr-effect_mgmt_ext-thin-ct2_list ) attr-mgmt ) ; set their mgmt attraction to a value from the ct2 list
+        set attr-mgmt_source ( lput stand-id attr-mgmt_source )                        ; set the mgmt attraction source stand to their own stand id
+        if edge? [                                                                                                                               ; PROJECT TO NEARBY STANDS FROM EDGE CELLS
+          let current-distance_m intercell-distance                                                                                              ; Set the starting ring to 1 cell distance
+          foreach ring-list_attraction [ this-ring ->                                                                                            ; For each distance ring,
+            let attr-mgmt_to-set ( attraction-distance-decay_FUNCTION ( one-of attr-effect_mgmt_ext-thin-ct2_list ) ( current-distance_m ) )     ; draw an attraction value from the list and run through distance decay equation,
+            ask cells at-points this-ring [
+              if potential-tree? [
+                let source-stand-id ( [ stand-id ] of myself )                            ; Store the stand-id of the attraction source (edge in mgmt-affected stand)
+                if ( stand-id != [ stand-id ] of myself ) [                                 ; IF in another stand
+                  ifelse ( member? source-stand-id attr-mgmt_source ) [                       ; IF this cell is already made attractive by the stand applying attraction
+                    let value-position   ( position source-stand-id attr-mgmt_source )          ; find the position at which the attraction value is stored in the attr-mgmt lists
+                    if ( ( item value-position attr-mgmt ) < attr-mgmt_to-set ) [               ; IF the current value is LOWER than the value to set
+                      set attr-mgmt ( replace-item value-position attr-mgmt attr-mgmt_to-set )    ; Change the value to the higher value (w/out changing attr-mgmt_source)
+                    ]
+                  ]
+                  ; ELSE: just set the value by adding to the list
+                  [ set attr-mgmt ( lput attr-mgmt_to-set attr-mgmt )                          ; add the attr value to the end of the list
+                    set attr-mgmt_source ( lput ( [ stand-id ] of myself ) attr-mgmt_source )  ; and add the source to the end of the list
+                  ]
+                ]
+              ]
+            ]
+            set current-distance_m ( current-distance_m + intercell-distance )                                                                   ; add to the distance for the next ring
+          ]
+        ]
+      ]
+    ]
+  ]
+end
+
+to add-attr-mgmt_harvest [ input_regen-list-short-rotation_to-add input_regen-list-long-rotation_to-add ]
+  if max-attraction-distance_m > 0 [
+    ; ADD ATTRACTION TO STANDS
+    if ( length input_regen-list-short-rotation_to-add > 0 ) [                           ; If there are any short-rotation stands harvested
+      ask trees_potential with [ member? stand-id input_regen-list-short-rotation_to-add ] [       ; Have cells with stand ids on that list
+        set stand-w-harv-disturbance? true                                                    ; mark as having been harvested
+        set attr-mgmt ( lput ( one-of attr-effect_mgmt_int-harv_list ) attr-mgmt )            ; set their mgmt attraction to a value drawn from the list
+        set attr-mgmt_source ( lput stand-id  attr-mgmt_source )                              ; and set the source as their own stand id
+        if edge? [                                                                                                                              ; IF edge?, project attraction to neighboring stand                                                                                                                                   
+          let current-distance_m intercell-distance                                                                                             ; Set the starting ring to 1 cell distance
+          foreach ring-list_attraction [ this-ring ->                                                                                           ; For each distance ring,
+            let attr-mgmt_to-set ( attraction-distance-decay_FUNCTION ( one-of attr-effect_mgmt_int-harv_list ) ( current-distance_m ) )        ; draw an attraction value from the list and run through distance decay equation,
+            ask cells at-points this-ring [
+              if potential-tree? [
+                let source-stand-id ( [ stand-id ] of myself )                            ; Store the stand-id of the attraction source (edge in mgmt-affected stand)
+                if ( stand-id != [ stand-id ] of myself ) [                                 ; IF in another stand
+                  ifelse ( member? source-stand-id attr-mgmt_source ) [                       ; IF this cell is already made attractive by the stand applying attraction
+                    let value-position   ( position source-stand-id attr-mgmt_source )          ; find the position at which the attraction value is stored in the attr-mgmt lists
+                    if ( ( item value-position attr-mgmt ) < attr-mgmt_to-set ) [               ; IF the current value is LOWER than the value to set
+                      set attr-mgmt ( replace-item value-position attr-mgmt attr-mgmt_to-set )    ; Change the value to the higher value (w/out changing attr-mgmt_source)
+                    ]
+                  ]
+                  ; ELSE: just set the value by adding to the list
+                  [ set attr-mgmt ( lput attr-mgmt_to-set attr-mgmt )                          ; add the attr value to the end of the list
+                    set attr-mgmt_source ( lput ( [ stand-id ] of myself ) attr-mgmt_source )  ; and add the source to the end of the list
+                  ]
+                ]
+            ]
+            ]                           
+            set current-distance_m ( current-distance_m + intercell-distance )                                                                  ; add to the distance for the next ring
+          ]
+        ]
+      ]
+    ]
+    if ( length input_regen-list-long-rotation_to-add > 0 ) [                           ; If there are any long-rotation stands harvested
+      ask trees_potential with [ member? stand-id input_regen-list-long-rotation_to-add ] [       ; Have cells with stand ids on that list
+        set stand-w-harv-disturbance? true                                                    ; mark as having been harvested
+        set attr-mgmt        ( lput ( one-of attr-effect_mgmt_ext-harv_list ) attr-mgmt )     ; set their mgmt attraction to a value drawn from the list
+        set attr-mgmt_source ( lput ( stand-id ) attr-mgmt_source )                           ; and set the source as their own stand id
+        if edge? [                                                                                                                              ; IF edge?, project attraction to neighboring stand                                                                                                                                   
+          let current-distance_m intercell-distance                                                                                             ; Set the starting ring to 1 cell distance
+          foreach ring-list_attraction [ this-ring ->                                                                                            ; For each distance ring,
+            let attr-mgmt_to-set ( attraction-distance-decay_FUNCTION ( one-of attr-effect_mgmt_ext-harv_list ) ( current-distance_m ) )        ; draw an attraction value from the list and run through distance decay equation,
+            ask cells at-points this-ring [
+              if potential-tree? [
+                let source-stand-id ( [ stand-id ] of myself )                            ; Store the stand-id of the attraction source (edge in mgmt-affected stand)
+                if ( stand-id != [ stand-id ] of myself ) [                                 ; IF in another stand
+                  ifelse ( member? source-stand-id attr-mgmt_source ) [                       ; IF this cell is already made attractive by the stand applying attraction
+                    let value-position   ( position source-stand-id attr-mgmt_source )          ; find the position at which the attraction value is stored in the attr-mgmt lists
+                    if ( ( item value-position attr-mgmt ) < attr-mgmt_to-set ) [               ; IF the current value is LOWER than the value to set
+                      set attr-mgmt ( replace-item value-position attr-mgmt attr-mgmt_to-set )    ; Change the value to the higher value (w/out changing attr-mgmt_source)
+                    ]
+                  ]
+                  ; ELSE: just set the value by adding to the list
+                  [ set attr-mgmt ( lput attr-mgmt_to-set attr-mgmt )                          ; add the attr value to the end of the list
+                    set attr-mgmt_source ( lput ( [ stand-id ] of myself ) attr-mgmt_source )  ; and add the source to the end of the list
+                  ]
+                ]
+              ]
+            ]
+            set current-distance_m ( current-distance_m + intercell-distance )                                                                  ; add to the distance for the next ring
+          ]
+        ]
+      ]
+    ]
+  ]
+end
+
+;~~~~~~~~~~~~~~~ REMOVE mgmt attraction ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+; minimum attraction duration = 2 yr, max = 4 yr
+to remove-attr-mgmt_by-stand
+  ; Create clean lists for the next step, thin and harvest
+  let   thin-0yr-ago_after    []
+  let   thin-1yr-ago_after    []
+  let   thin-2yr-ago_after    []
+  let   thin-3yr-ago_after    []
+  let   harv-0yr-ago_after    []
+  let   harv-1yr-ago_after    []
+  let   harv-2yr-ago_after    []
+  let   harv-3yr-ago_after    []
+  ;____________________________________________________________________
+  ;---------------- REMOVE ATTR THINNED STANDS ------------------------
+  
+  ; set the probability that attr is lost between the min and max duration
+  ; prob attr loss
+  
+  
+  ; THIN-0YR-AGO (1st year attracting)
+  ; If the min is greater than 1 yr, have all thin-0yr-ago move to thin-1yr-ago
+  ifelse ( dead-attr-duration_min >= 1 ) [
+    set thin-1yr-ago_after ( thin-0yr-ago )
+  ]
+  [ ; Else, some probability of losing attr
+    foreach thin-0yr-ago [ this-stand ->
+      ; IF:   RANDOM = TRUE,  CLEAR ATTR and REMOVE from thinned list
+      ifelse ( random-float 1 < prob-attr-dead-loss ) [
+        ask trees_potential with [ member? this-stand attr-mgmt_source ] [
+          let value-position   ( position this-stand attr-mgmt_source )                     ; Find the position of this source in the attr-mgmt lists
+          set attr-mgmt        ( remove-item value-position attr-mgmt )            ; Remove the item at the position in (a) the attr-mgmt list
+          set attr-mgmt_source ( remove-item value-position attr-mgmt_source )     ; and (b) the attr-mgmt_source list
+;          if ( stand-id = this-stand and not alive? and tree? ) [
+;            if infected? and not newly-infected? [
+;              set losing-infection? true
+;;              file-print ( word ticks "," who "," tree? "," alive? "," infected? "," mort-cause  ",false,true,remove-attr-mgmt_by-stand" ) ; delete
+;            ]
+;            if ( mort-cause = "bsrd" and not new-bsrd-mortality? ) [ set losing-attr-dead? true ] ; account for those trees that had projected attr-dead before stand was thinned (unless they just died)
+;            if ( new-bsrd-mortality? ) [ set new-bsrd-mortality? false ]
+;            reset-cell-properties
+;          ]
+        ]
+        print ( word "RM ATTR MGMT: Stand " this-stand " lost attr-mgmt" )
+      ]
+      ; ELSE: RANDOM = FALSE, DO move to the next list
+      [ set thin-1yr-ago_after ( lput this-stand thin-1yr-ago_after ) ]
+    ]
+  ]
+  
+  ; THIN-1YR-AGO (2nd year attracting) -------------------------
+  ; If the min is greater than 2 yr, have all thin-1yr-ago move to thin-2yr-ago
+  ifelse ( dead-attr-duration_min >= 2 ) [
+    set thin-2yr-ago_after ( thin-1yr-ago )
+  ]
+  [ ; Else, some probability of losing attr  
+    foreach thin-1yr-ago [ this-stand ->
+      ; IF:   RANDOM = TRUE,  CLEAR ATTR and REMOVE from thinned list
+      ifelse ( random-float 1 < prob-attr-dead-loss ) [
+        ask trees_potential with [ member? this-stand attr-mgmt_source ] [
+          let value-position   ( position this-stand attr-mgmt_source )                     ; Find the position of this source in the attr-mgmt lists
+          set attr-mgmt        ( remove-item value-position attr-mgmt )            ; Remove the item at the position in (a) the attr-mgmt list
+          set attr-mgmt_source ( remove-item value-position attr-mgmt_source )     ; and (b) the attr-mgmt_source list
+;          if ( stand-id = this-stand and not alive? and tree? ) [
+;            if infected? and not newly-infected? [
+;              set losing-infection? true
+;;              file-print ( word ticks "," who "," tree? "," alive? "," infected? "," mort-cause  ",false,true,remove-attr-mgmt_by-stand" ) ; delete
+;            ]
+;            if ( mort-cause = "bsrd" and not new-bsrd-mortality? ) [ set losing-attr-dead? true ] ; account for those trees that had projected attr-dead before stand was thinned (unless they just died)
+;            if ( new-bsrd-mortality? ) [ set new-bsrd-mortality? false ]
+;            reset-cell-properties
+;          ]
+        ]
+        print ( word "RM ATTR MGMT: Stand " this-stand " lost attr-mgmt" )
+      ]
+      ; ELSE: RANDOM = FALSE, DO move to the next list
+      [ set thin-2yr-ago_after ( lput this-stand thin-2yr-ago_after ) ]
+    ]
+  ]
+  ;-------------
+  ; THIN-2YR-AGO (3rd year attracting)
+  ifelse ( dead-attr-duration_min >= 3 ) [
+    set thin-3yr-ago_after ( thin-2yr-ago )
+  ]
+  [ ; Else, some probability of losing attr 
+    ; Have thin-2yr-ago move to thin-3yr-ago (unless removed)
+    foreach thin-2yr-ago [ this-stand ->
+      ; IF:   RANDOM = TRUE,  CLEAR ATTR and REMOVE from thinned list
+      ifelse ( random-float 1 < prob-attr-dead-loss ) [
+        ask trees_potential with [ member? this-stand attr-mgmt_source ] [
+          let value-position   ( position this-stand attr-mgmt_source )                     ; Find the position of this source in the attr-mgmt lists
+          set attr-mgmt        ( remove-item value-position attr-mgmt )            ; Remove the item at the position in (a) the attr-mgmt list
+          set attr-mgmt_source ( remove-item value-position attr-mgmt_source )     ; and (b) the attr-mgmt_source list
+;          if ( stand-id = this-stand and not alive? and tree? ) [
+;            if infected? and not newly-infected? [
+;              set losing-infection? true
+;;              file-print ( word ticks "," who "," tree? "," alive? "," infected? "," mort-cause  ",false,true,remove-attr-mgmt_by-stand" ) ; delete
+;            ]
+;            if ( mort-cause = "bsrd" and not new-bsrd-mortality? ) [ set losing-attr-dead? true ] ; account for those trees that had projected attr-dead before stand was thinned (unless they just died)
+;            if ( new-bsrd-mortality? ) [ set new-bsrd-mortality? false ]
+;            reset-cell-properties
+;          ]
+        ]
+        print ( word "RM ATTR MGMT: Stand " this-stand " lost attr-mgmt" )
+      ]
+      ; ELSE: RANDOM = FALSE, DO move to the next list
+      [ set thin-3yr-ago_after ( lput this-stand thin-3yr-ago_after ) ]
+    ]
+  ]
+  ;-------------
+  ; THIN-3YR-AGO (4th year attracting)
+  ; Remove attraction from *all* thin-3yr-ago stands
+  foreach thin-3yr-ago [ this-stand ->
+    ; CLEAR ATTR and REMOVE from thinned list
+    ask trees_potential with [ member? this-stand attr-mgmt_source ] [
+      let value-position   ( position this-stand attr-mgmt_source )                     ; Find the position of this source in the attr-mgmt lists
+      set attr-mgmt        ( remove-item value-position attr-mgmt )            ; Remove the item at the position in (a) the attr-mgmt list
+      set attr-mgmt_source ( remove-item value-position attr-mgmt_source )     ; and (b) the attr-mgmt_source list
+;      if ( stand-id = this-stand and not alive? and tree? ) [ 
+;        if infected? and not newly-infected? [
+;          set losing-infection? true
+;;          file-print ( word ticks "," who "," tree? "," alive? "," infected? "," mort-cause  ",false,true,remove-attr-mgmt_by-stand" ) ; delete
+;        ]
+;        if ( mort-cause = "bsrd" and not new-bsrd-mortality? ) [ set losing-attr-dead? true ] ; account for those trees that had projected attr-dead before stand was thinned (unless they just died)
+;        if ( new-bsrd-mortality? ) [ set new-bsrd-mortality? false ]
+;        reset-cell-properties
+;      ]
+    ]
+    print ( word "RM ATTR MGMT: Stand " this-stand " lost attr-mgmt" )
+  ]
+  
+  ;---------------- REMOVE ATTR HARVESTED STANDS ----------------
+  ; HARV-0YR-AGO (1st year attracting)
+  ; If the min is greater than 1 yr, have all harv-0yr-ago move to harv-1yr-ago
+  ifelse ( dead-attr-duration_min >= 1 ) [
+    set harv-1yr-ago_after ( harv-0yr-ago )
+  ]
+  [ ; Else, some probability of losing attr
+    foreach harv-0yr-ago [ this-stand ->
+      ; IF:   RANDOM = TRUE,  CLEAR ATTR and REMOVE from harv list
+      ifelse ( random-float 1 < prob-attr-dead-loss ) [
+        ask trees_potential with [ member? this-stand attr-mgmt_source ] [
+          let value-position   ( position this-stand attr-mgmt_source )                     ; Find the position of this source in the attr-mgmt lists
+          set attr-mgmt        ( remove-item value-position attr-mgmt )            ; Remove the item at the position in (a) the attr-mgmt list
+          set attr-mgmt_source ( remove-item value-position attr-mgmt_source )     ; and (b) the attr-mgmt_source list
+;          if ( stand-id = this-stand and not alive? and tree? ) [
+;            if infected? and not newly-infected? [
+;              set losing-infection? true
+;;              file-print ( word ticks "," who "," tree? "," alive? "," infected? "," mort-cause  ",false,true,remove-attr-mgmt_by-stand" ) ; delete
+;            ]
+;            if ( mort-cause = "bsrd" and not new-bsrd-mortality? ) [ set losing-attr-dead? true ] ; account for those trees that had projected attr-dead before stand was thinned (unless they just died)
+;            if ( new-bsrd-mortality? ) [ set new-bsrd-mortality? false ]
+;            reset-cell-properties
+;          ]
+        ]
+        print ( word "RM ATTR MGMT: Stand " this-stand " lost attr-mgmt" )
+      ]
+      ; ELSE: RANDOM = FALSE, DO move to the next list
+      [ set harv-1yr-ago_after ( lput this-stand harv-1yr-ago_after ) ]
+    ]
+  ]
+  
+   ; HARV-1YR-AGO (2nd year attracting) -------------------------
+  ; If the min is greater than 2 yr, have all harv-1yr-ago move to harv-2yr-ago
+  ifelse ( dead-attr-duration_min >= 2 ) [
+    set harv-2yr-ago_after ( harv-1yr-ago )
+  ]
+  [ ; Else, some probability of losing attr  
+    foreach harv-1yr-ago [ this-stand ->
+      ; IF:   RANDOM = TRUE,  CLEAR ATTR and REMOVE from harv list
+      ifelse ( random-float 1 < prob-attr-dead-loss ) [
+        ask trees_potential with [ member? this-stand attr-mgmt_source ] [
+          let value-position   ( position this-stand attr-mgmt_source )                     ; Find the position of this source in the attr-mgmt lists
+          set attr-mgmt        ( remove-item value-position attr-mgmt )            ; Remove the item at the position in (a) the attr-mgmt list
+          set attr-mgmt_source ( remove-item value-position attr-mgmt_source )     ; and (b) the attr-mgmt_source list
+;          if ( stand-id = this-stand and not alive? and not infected? and tree? ) [
+;            if infected? and not newly-infected? [
+;              set losing-infection? true
+;;              file-print ( word ticks "," who "," tree? "," alive? "," infected? "," mort-cause  ",false,true,remove-attr-mgmt_by-stand" ) ; delete
+;            ]
+;            if ( mort-cause = "bsrd" and not new-bsrd-mortality? ) [ set losing-attr-dead? true ] ; account for those trees that had projected attr-dead before stand was thinned (unless they just died)
+;            if ( new-bsrd-mortality? ) [ set new-bsrd-mortality? false ]
+;            reset-cell-properties
+;          ]
+        ]
+        print ( word "RM ATTR MGMT: Stand " this-stand " lost attr-mgmt" )
+      ]
+      ; ELSE: RANDOM = FALSE, DO move to the next list
+      [ set harv-2yr-ago_after ( lput this-stand harv-2yr-ago_after ) ]
+    ]
+  ]
+  ;-------------
+  ; HARV-2YR-AGO (3rd year attracting)
+  ifelse ( dead-attr-duration_min >= 3 ) [
+    set harv-3yr-ago_after ( harv-2yr-ago )
+  ]
+  [ ; Else, some probability of losing attr 
+    ; Have harv-2yr-ago move to harv-3yr-ago (unless removed)
+    foreach harv-2yr-ago [ this-stand ->
+      ; IF:   RANDOM = TRUE,  CLEAR ATTR and REMOVE from harv list
+      ifelse ( random-float 1 < prob-attr-dead-loss ) [
+        ask trees_potential with [ member? this-stand attr-mgmt_source ] [
+          let value-position   ( position this-stand attr-mgmt_source )                     ; Find the position of this source in the attr-mgmt lists
+          set attr-mgmt        ( remove-item value-position attr-mgmt )            ; Remove the item at the position in (a) the attr-mgmt list
+          set attr-mgmt_source ( remove-item value-position attr-mgmt_source )     ; and (b) the attr-mgmt_source list
+;          if ( stand-id = this-stand and not alive? and tree? ) [
+;            if infected? and not newly-infected? [
+;              set losing-infection? true
+;;              file-print ( word ticks "," who "," tree? "," alive? "," infected? "," mort-cause  ",false,true,remove-attr-mgmt_by-stand" ) ; delete
+;            ]
+;            if ( mort-cause = "bsrd" and not new-bsrd-mortality? ) [ set losing-attr-dead? true ] ; account for those trees that had projected attr-dead before stand was thinned (unless they just died)
+;            if ( new-bsrd-mortality? ) [ set new-bsrd-mortality? false ]
+;            reset-cell-properties
+;          ]
+        ]
+        print ( word "RM ATTR MGMT: Stand " this-stand " lost attr-mgmt" )
+      ]
+      ; ELSE: RANDOM = FALSE, DO move to the next list
+      [ set harv-3yr-ago_after ( lput this-stand harv-3yr-ago_after ) ]
+    ]
+  ]
+  ;-------------
+  ; HARV-3YR-AGO (4th year attracting)
+  ; Remove attraction from *all* harv-3yr-ago stands
+  foreach harv-3yr-ago [ this-stand ->
+    ; CLEAR ATTR and REMOVE from harv list
+    ask trees_potential with [ member? this-stand attr-mgmt_source ] [
+      let value-position   ( position this-stand attr-mgmt_source )                     ; Find the position of this source in the attr-mgmt lists
+      set attr-mgmt        ( remove-item value-position attr-mgmt )            ; Remove the item at the position in (a) the attr-mgmt list
+      set attr-mgmt_source ( remove-item value-position attr-mgmt_source )     ; and (b) the attr-mgmt_source list
+;      if ( stand-id = this-stand and not alive? and tree? ) [
+;        if infected? and not newly-infected? [
+;          set losing-infection? true 
+;;          file-print ( word ticks "," who "," tree? "," alive? "," infected? "," mort-cause  ",false,true,remove-attr-mgmt_by-stand" ) ; delete
+;        ]
+;        if ( mort-cause = "bsrd" and not new-bsrd-mortality? ) [ set losing-attr-dead? true ] ; account for those trees that had projected attr-dead before stand was thinned (unless they just died)
+;        if ( new-bsrd-mortality? ) [ set new-bsrd-mortality? false ]
+;        reset-cell-properties
+;      ]
+    ]
+    print ( word "RM ATTR MGMT: Stand " this-stand " lost attr-mgmt" )
+  ]
+
+  ;____________________________________________________________________
+  ; UPDATE ALL LISTS FOR THE NEXT YEAR
+  set    thin-0yr-ago    thin-0yr-ago_after
+  set    thin-1yr-ago    thin-1yr-ago_after
+  set    thin-2yr-ago    thin-2yr-ago_after
+  set    thin-3yr-ago    thin-3yr-ago_after
+  set    harv-0yr-ago    harv-0yr-ago_after
+  set    harv-1yr-ago    harv-1yr-ago_after
+  set    harv-2yr-ago    harv-2yr-ago_after
+  set    harv-3yr-ago    harv-3yr-ago_after
+
+  ; COLOR TO DISPLAY
+  ;if visualize? [ ask trees_potential   [ set  color scale-color red ( max attr-mgmt ) 4 1 ] ask patches [ set pcolor color_patches ] ]
+end
+

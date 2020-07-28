@@ -1,0 +1,988 @@
+; Developed by: Adam J Bouché for a Master of Science Thesis in Forest Ecosystems and Society at Oregon State University
+; 2017 - 2020
+
+globals [
+ ;____________________________________________________________________________________________________________________
+  ; PROBABILITY PARAMETERS
+  
+  max-tree-age ; used for multiple parameter setups
+  
+  ; SUSCEPTIBILITY GLOBALS for BSRD infection and mortality susceptibility
+  age-bsrd-inf-suscept_list
+  ; Susceptibility to mortality - susceptibility is lower in the year the tree becomes infected than in subsequent years
+  age-bsrd-mort-suscept_year-of-infection_list            ; Mortality rate in the year that tree is infected (low)
+  age-bsrd-mort-suscept_years-after-infection_list    ; Mortality rate in the years after the initial year of infection (high)
+  
+  ; PROB ROOT INFECTION GLOBALS: Lists used to store the ages of infected neighbor trees at a given distance (in cell units)
+  prob-root-contact_1cellDist_list 
+  prob-root-contact_2cellDist_list
+  prob-root-contact_3cellDist_list
+  prob-root-contact_4cellDist_list
+  prob-root-transmission_list
+  
+  ; PROB INSECT INFECTION GLOBALS: Lists for probability distribution samples improves speed
+  prob-insect-infested_SC_list
+  prob-insect-infested_PF_list
+  prob-insect-infested_HN_list
+  prob-insect-transmission_SC_list
+  prob-insect-transmission_PF_list
+  prob-insect-transmission_HN_list
+  prob-insect-dispersal_SC_list
+  prob-insect-dispersal_PF_HN_list
+  prob-insect-dispersal_PF_HN_background_list
+  
+  ; DELETE once testing is complete
+  prob-insect-dispersal_PF_list
+  prob-insect-dispersal_PF_background_list
+  prob-insect-dispersal_HN_list
+  prob-insect-dispersal_HN_background_list
+
+  
+  ; Prob insect wounding - Base probabilities (Trees in stand interiors of unthinned, unharvested stands)
+  ; Attraction effects applied to these probabilities
+  prob-insect-wound_live-nonInf_list      ; PROB WOUND for LIVE, NON-INF TREE
+  prob-insect-wound_dead-nonInf_list      ; PROB WOUND for DEAD, NON-INF TREE
+  prob-insect-wound_live-inf_list         ; PROB WOUND for LIVE, INF TREE
+  prob-insect-wound_dead-inf_list         ; PROB WOUND for DEAD, INF TREE
+
+  ; Attraction effects ________________
+  ; MGMT EFFECT (THIN/HARVEST)
+  attr-effect_mgmt_int-harv_list        ; ATTRACTION EFFECT FOR harvest in short-rotationLY MANAGED STANDS
+  attr-effect_mgmt_ext-thin-pct_list    ; ATTRACTION EFFECT FOR Pre-commercial thinning in long-rotationLY MANAGED STANDS
+  attr-effect_mgmt_ext-thin-ct1_list    ; ATTRACTION EFFECT FOR 1st commercial thinning in long-rotationLY MANAGED STANDS
+  attr-effect_mgmt_ext-thin-ct2_list    ; ATTRACTION EFFECT FOR 2nd commercial thinning in long-rotationLY MANAGED STANDS
+  attr-effect_mgmt_ext-harv_list        ; ATTRACTION EFFECT FOR harvest in long-rotationLY MANAGED STANDS
+  ; ROAD EFFECT
+  attr-effect_road_list            ; ATTRACTION EFFECT FOR TREES ALONG ROADS
+  ; STATUS EFFECTS
+  attr-effect_inf-vs-live_list     ; ATTRACTION EFFECT FOR INFECTED TREES - Infected relative to live trees
+  attr-effect_inf-vs-live_max     ; ATTRACTION EFFECT FOR INFECTED TREES - Infected relative to live trees
+  attr-effect_inf-vs-dead_list     ; ATTRACTION EFFECT FOR INFECTED TREES - Infected relative to dead trees
+  attr-effect_inf-vs-dead_max     ; ATTRACTION EFFECT FOR INFECTED TREES - Infected relative to dead trees
+  attr-effect_dead_list            ; ATTRACTION EFFECT FOR DEAD TREES
+  attr-effect_dead_max            ; ATTRACTION EFFECT FOR DEAD TREES
+
+  ; for attr-inf-dead_conservative? == true
+  attr-effect_tree-weight-over-distance_list ; List used to calculate the weight an infected tree should have in its surroundings' attraction
+  inf-center-attr-threshold_n-source-trees   ; the source tree value necessary (from weighted tree presence by distance)
+                                             ; for the area to be considered an infection center, allowing for the full range of attr-inf values to be used
+]
+; test
+
+
+;____________________________________________________________________________________________________________________
+; INFECTION PARAMETERS
+;____________________________________________________________________________________________________________________
+to reset-infection-parameters
+  ; RESET PROB PARAMS
+  set age-bsrd-inf-suscept_list                          []
+  set age-bsrd-mort-suscept_year-of-infection_list       []
+  set age-bsrd-mort-suscept_years-after-infection_list   []
+
+  set prob-root-contact_1cellDist_list                   []
+  set prob-root-contact_2cellDist_list                   []
+  set prob-root-contact_3cellDist_list                   []
+  set prob-root-contact_4cellDist_list                   []
+  set prob-root-transmission_list                        []
+  
+  set prob-insect-infested_SC_list             []
+  set prob-insect-infested_PF_list             []
+  set prob-insect-infested_HN_list             []
+  set prob-insect-transmission_SC_list         []
+  set prob-insect-transmission_PF_list         []
+  set prob-insect-transmission_HN_list         []
+  set prob-insect-dispersal_SC_list            []
+  set prob-insect-dispersal_PF_list            []
+  set prob-insect-dispersal_HN_list            []
+
+  set prob-insect-wound_live-nonInf_list          []  ; PROB WOUND for LIVE, NON-INF TREE
+  set prob-insect-wound_dead-nonInf_list          []  ; PROB WOUND for DEAD, NON-INF TREE
+  set prob-insect-wound_live-inf_list             []  ; PROB WOUND for LIVE, INF TREE
+  set prob-insect-wound_dead-inf_list             []  ; PROB WOUND for DEAD, INF TREE
+  set max-attraction-distance_cell                []  ; max distance for attraction of insects (in cell units): 10 cells = 15 m / 49.2 ft
+  set attr-effect_mgmt_int-harv_list              []  ; ATTRACTION EFFECT FOR harvest in short-rotationLY MANAGED STANDS
+  set attr-effect_mgmt_ext-thin-pct_list          []  ; ATTRACTION EFFECT FOR Pre-commercial thinning in long-rotationLY MANAGED STANDS
+  set attr-effect_mgmt_ext-thin-ct1_list          []  ; ATTRACTION EFFECT FOR 1st commercial thinning in long-rotationLY MANAGED STANDS
+  set attr-effect_mgmt_ext-thin-ct2_list          []  ; ATTRACTION EFFECT FOR 2nd commercial thinning in long-rotationLY MANAGED STANDS
+  set attr-effect_mgmt_ext-harv_list              []  ; ATTRACTION EFFECT FOR harvest in long-rotationLY MANAGED STANDS
+  set attr-effect_road_list                       []  ; ATTRACTION EFFECT FOR TREES ALONG ROADS
+  set attr-effect_inf-vs-live_list                []  ; ATTRACTION EFFECT FOR INFECTED TREES
+  set attr-effect_inf-vs-dead_list                []  ; ATTRACTION EFFECT FOR INFECTED TREES
+  set attr-effect_dead_list                       []  ; ATTRACTION EFFECT FOR DEAD TREES
+  set attr-effect_inf-vs-live_max                 0 ; ATTRACTION EFFECT FOR INFECTED TREES - Infected relative to live trees
+  set attr-effect_inf-vs-dead_max                 0 ; ATTRACTION EFFECT FOR INFECTED TREES - Infected relative to dead trees
+  set attr-effect_dead_max                        0 ; ATTRACTION EFFECT FOR DEAD TREES
+  
+  set attr-effect_tree-weight-over-distance_list  []  ; List used to calculate the weight an infected tree should have in its surroundings' attraction
+  set inf-center-attr-threshold_n-source-trees 0
+  set intercell-distance 1.524   ; just in case
+  set max-attraction-distance_cell ( round ( max-attraction-distance_m  / intercell-distance ) ) ; max distance for insect attraction (in cell units): 15 m / 49.2 ft / 10 cell distances
+  set prob-attr-dead-loss 0
+end
+
+to check-infection-parameters   ; Test to make sure that parameter values have been set and are logical
+  ; PROBABILITY PARAMETERS
+    
+  print ( word "max.root.extent.A: " r:get "max.root.extent.A" )
+  print ( word "max.root.extent.B: " r:get "max.root.extent.B" )
+  
+  ; SUSCEPTIBILITY GLOBALS
+  set max-tree-age ( max ( list rotation:short-rotation rotation:long-rotation ))
+  print ( word "age-bsrd-inf-suscept_list (age 5): " item 6 age-bsrd-inf-suscept_list )
+  print ( word "age-bsrd-inf-suscept_list (max): " item ( max-tree-age - 1 )age-bsrd-inf-suscept_list )
+  print ( word "age-bsrd-mort-suscept_year-of-infection_list (age 5): " item 6 age-bsrd-mort-suscept_year-of-infection_list )
+  print ( word "age-bsrd-mort-suscept_year-of-infection_list (age 5) mean: " mean item 6 age-bsrd-mort-suscept_year-of-infection_list )
+  print ( word "age-bsrd-mort-suscept_year-of-infection_list (max): " item ( max-tree-age - 1 ) age-bsrd-mort-suscept_year-of-infection_list )
+  print ( word "age-bsrd-mort-suscept_year-of-infection_list (max) mean: " mean item ( max-tree-age - 1 ) age-bsrd-mort-suscept_year-of-infection_list )
+  print ( word "age-bsrd-mort-suscept_years-after-infection_list (age 5): " item 6 age-bsrd-mort-suscept_years-after-infection_list )
+  print ( word "age-bsrd-mort-suscept_years-after-infection_list (age 5) mean: " mean item 6 age-bsrd-mort-suscept_years-after-infection_list )
+  print ( word "age-bsrd-mort-suscept_years-after-infection_list (max): " item ( max-tree-age - 1 ) age-bsrd-mort-suscept_years-after-infection_list )
+  print ( word "age-bsrd-mort-suscept_years-after-infection_list (max) mean: " mean item ( max-tree-age - 1 ) age-bsrd-mort-suscept_years-after-infection_list )
+
+  ; PROB ROOT INFECTION GLOBALS: Lists for probability distribution samples improves speed
+  print ( word "prob-root-contact_1cellDist_list (age 5) (sample): " item 6 prob-root-contact_1cellDist_list )
+  print ( word "prob-root-contact_1cellDist_list (age 5) (sample) mean: " mean item 0 item 6 prob-root-contact_1cellDist_list )
+  print ( word "prob-root-contact_1cellDist_list (max age for settings) (sample): " item ( max-tree-age - 1 ) prob-root-contact_1cellDist_list )
+  print ( word "prob-root-contact_1cellDist_list (max age for settings) (sample) mean: " mean item 0 item ( max-tree-age - 1 ) prob-root-contact_1cellDist_list )
+  print ( word "prob-root-contact_2cellDist_list (age 5): " item 6 prob-root-contact_2cellDist_list )
+  print ( word "prob-root-contact_2cellDist_list (age 5) mean: " mean item 0 item 6 prob-root-contact_2cellDist_list )
+  print ( word "prob-root-contact_2cellDist_list (max): " item ( max-tree-age - 1 ) prob-root-contact_2cellDist_list )
+  print ( word "prob-root-contact_2cellDist_list (max) mean: " mean item 0 item ( max-tree-age - 1 ) prob-root-contact_2cellDist_list )
+  print ( word "prob-root-contact_3cellDist_list (age 5): " item 6 prob-root-contact_3cellDist_list )
+  print ( word "prob-root-contact_3cellDist_list (age 5) mean: " mean item 0 item 6 prob-root-contact_3cellDist_list )
+  print ( word "prob-root-contact_3cellDist_list (max): " item ( max-tree-age - 1 ) prob-root-contact_3cellDist_list )
+  print ( word "prob-root-contact_3cellDist_list (max) mean: " mean item 0 item ( max-tree-age - 1 ) prob-root-contact_3cellDist_list )
+  print ( word "prob-root-contact_4cellDist_list (age 5): " item 6 prob-root-contact_4cellDist_list )
+  print ( word "prob-root-contact_4cellDist_list (age 5) mean : " mean item 0 item 6 prob-root-contact_4cellDist_list )
+  print ( word "prob-root-contact_4cellDist_list (max): " item ( max-tree-age - 1 ) prob-root-contact_4cellDist_list )
+  print ( word "prob-root-contact_4cellDist_list (max) mean: " mean item 0 item ( max-tree-age - 1 ) prob-root-contact_4cellDist_list )
+
+  print ( word "prob-root-transmission_list: " prob-root-transmission_list )
+ 
+  ; PROB INSECT INFECTION GLOBALS: Lists for probability distribution samples improves speed
+  print ( word "prob-insect-infested_SC_list: " prob-insect-infested_SC_list )
+  print ( word "prob-insect-infested_PF_list: " prob-insect-infested_PF_list )
+  print ( word "prob-insect-infested_HN_list: " prob-insect-infested_HN_list )
+  print ( word "prob-insect-transmission_SC_list: " prob-insect-transmission_SC_list )
+  print ( word "prob-insect-transmission_PF_list: " prob-insect-transmission_PF_list )
+  print ( word "prob-insect-transmission_HN_list: " prob-insect-transmission_HN_list )
+  print ( word "prob-insect-dispersal_SC_list: " prob-insect-dispersal_SC_list )
+  print ( word "prob-insect-dispersal_PF_list: " prob-insect-dispersal_PF_list )
+  print ( word "prob-insect-dispersal_PF_background_list: " prob-insect-dispersal_PF_background_list )
+  print ( word "prob-insect-dispersal_HN_list: " prob-insect-dispersal_HN_list )
+  print ( word "prob-insect-dispersal_HN_background_list: " prob-insect-dispersal_HN_background_list )
+  
+  ; Prob insect wounding - Base probabilities (Trees in stand interiors of unthinned, unharvested stands)
+  ; Attraction effects applied to these probabilities
+  print ( word "prob-insect-wound_live-nonInf_list: " prob-insect-wound_live-nonInf_list )
+  print ( word "prob-insect-wound_dead-nonInf_list: " prob-insect-wound_dead-nonInf_list )
+  print ( word "prob-insect-wound_live-inf_list: " prob-insect-wound_live-inf_list )
+  print ( word "prob-insect-wound_dead-inf_list: " prob-insect-wound_dead-inf_list )
+  ; ATTRACTION GLOBALS - Used for PROB WOUNDING by insects and increases in PROB insect INFECTION
+  print ( word "max-attraction-distance_cell: " max-attraction-distance_cell ) 
+  print ( word "attr-effect_mgmt_int-harv_list: " attr-effect_mgmt_int-harv_list )
+  print ( word "attr-effect_mgmt_ext-thin-pct_list: " attr-effect_mgmt_ext-thin-pct_list )
+  print ( word "attr-effect_mgmt_ext-thin-ct1_list: " attr-effect_mgmt_ext-thin-ct1_list )
+  print ( word "attr-effect_mgmt_ext-thin-ct2_list: " attr-effect_mgmt_ext-thin-ct2_list )
+  print ( word "attr-effect_mgmt_ext-harv_list: " attr-effect_mgmt_ext-harv_list )
+  print ( word "attr-effect_road_list: " attr-effect_road_list )
+  print ( word "attr-effect_inf-vs-live_list: " attr-effect_inf-vs-live_list )
+  print ( word "attr-effect_inf-vs-live_max: "  attr-effect_inf-vs-live_max )
+  print ( word "attr-effect_inf-vs-dead_list: " attr-effect_inf-vs-dead_list )
+  print ( word "attr-effect_inf-vs-dead_max: " attr-effect_inf-vs-dead_max )
+  print ( word "attr-effect_dead_list: " attr-effect_dead_list )
+  print ( word "attr-effect_dead_max: " attr-effect_dead_max )
+
+  print ( word "attr-effect_tree-weight-over-distance_list"  attr-effect_tree-weight-over-distance_list )  ; List used to calculate the weight an infected tree should have in its surroundings' attraction
+end
+
+to setup-infection-parameters
+  ; Necessary, fixed variables
+  reset-infection-parameters
+    
+  ; BETA DISTRIBUTION - for continuous proportions between 0 and 1 - functions used in other parameters
+  r:eval "get_beta.alpha <- function( mean.val, beta.val )  { ( beta.val * mean.val ) / ( 1 - mean.val )}"
+  r:eval "get_beta.mean <-  function( alpha.val, beta.val ) { alpha.val / ( alpha.val + beta.val ) }"
+  
+  ;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  ; SUSCEPTIBILITY
+  ;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  
+  ; Get the range of ages used in this simulation
+  set max-tree-age ( max ( list rotation:long-rotation rotation:short-rotation ) )
+  let age-range ( range 0 ( max-tree-age + 1 ) )
+  
+  set_infection-parameters_susceptibility age-range
+  print "setup-infection-parameters: susceptibility parameters set"
+  
+  ;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  ; PROB ROOT INFECTION FUNCTIONS
+  ;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  ifelse max-root-distance_m > 0 [
+    setup_infection-parameters_root
+    print "setup-infection-parameters: root parameters set"
+  ]
+  [ 
+    set prob-root-contact_1cellDist_list  [0]
+    set prob-root-contact_2cellDist_list  [0]
+    set prob-root-contact_3cellDist_list  [0]
+    set prob-root-contact_4cellDist_list  [0]
+    set prob-root-transmission_list       [0]
+    print "No root spread. max-root-distance_m is not > 0."
+  ]
+
+  ;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  ; PROB INSECT INFECTION FUNCTIONS
+  ;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  
+  ; PROB INSECT INFESTED (The probability that an insect carries L. wagneri spores, from Witcosky et al 1986a)
+  setup_infection-parameters_insect-infested
+
+  ; PROB INSECT TRANSMISSION [UPON EXPOSURE] (The probability that the infection is transmitted to the tree when visited AND wounded by an insect that is infested with spores)
+  ; CHECK UPDATE: Based on "model-eqs-params-WIP_20200115_.R" ; CHECK FIX FILE SOURCE
+  r:eval "prob.insect.transmission_SC_n.infected <-  52"
+  r:eval "prob.insect.transmission_SC_n.wounded  <-  78"
+  r:eval "prob.insect.transmission_SC_prop.inf.when.wounded <- prob.insect.transmission_SC_n.infected / prob.insect.transmission_SC_n.wounded"
+  set prob-insect-transmission_SC_list r:get "rbinom(n = 250, size = prob.insect.transmission_SC_n.wounded, prob = prob.insect.transmission_SC_prop.inf.when.wounded ) / prob.insect.transmission_SC_n.wounded"
+  if sensitivity-analysis-param = "prob-insect-transmission_SC" [ set prob-insect-transmission_SC_list ( map [ i -> i * sensitivity-analysis-multiplier ] prob-insect-transmission_SC_list ) ]
+  r:eval "prob.insect.transmission_PF_n.infected <-  23"
+  r:eval "prob.insect.transmission_PF_n.wounded  <-  93"
+  r:eval "prob.insect.transmission_PF_prop.inf.when.wounded <- prob.insect.transmission_PF_n.infected / prob.insect.transmission_PF_n.wounded"
+  set prob-insect-transmission_PF_list r:get "rbinom(n = 250, size = prob.insect.transmission_PF_n.wounded, prob = prob.insect.transmission_PF_prop.inf.when.wounded ) / prob.insect.transmission_PF_n.wounded"
+  if sensitivity-analysis-param = "prob-insect-transmission_PF" [ set prob-insect-transmission_PF_list ( map [ i -> i * sensitivity-analysis-multiplier ] prob-insect-transmission_PF_list ) ]
+  r:eval "prob.insect.transmission_HN_n.infected <-  31"
+  r:eval "prob.insect.transmission_HN_n.wounded  <-  352"
+  r:eval "prob.insect.transmission_HN_prop.inf.when.wounded <- prob.insect.transmission_HN_n.infected / prob.insect.transmission_HN_n.wounded"
+  set prob-insect-transmission_HN_list r:get "rbinom(n = 250, size = prob.insect.transmission_HN_n.wounded, prob = prob.insect.transmission_HN_prop.inf.when.wounded ) / prob.insect.transmission_HN_n.wounded"
+  if sensitivity-analysis-param = "prob-insect-transmission_HN" [ set prob-insect-transmission_HN_list ( map [ i -> i * sensitivity-analysis-multiplier ] prob-insect-transmission_HN_list ) ]
+  if sensitivity-analysis-param = "prob-insect-transmission" [ ; FIX finish
+    set prob-insect-transmission_SC_list ( map [ i -> i * sensitivity-analysis-multiplier ] prob-insect-transmission_SC_list )
+    set prob-insect-transmission_PF_list ( map [ i -> i * sensitivity-analysis-multiplier ] prob-insect-transmission_PF_list )
+    set prob-insect-transmission_HN_list ( map [ i -> i * sensitivity-analysis-multiplier ] prob-insect-transmission_HN_list )
+  ]
+  print "setup-infection-parameters: insect infested and transmission parameters set"
+  ; PROB INSECT DISPERSAL LISTS
+  setup_infection-parameters_insect-dispersal
+  print "setup-infection-parameters: insect dispersal parameters set"    
+  
+  ;____________________________________________________________
+  ; ATTRACTION EFFECTS
+  setup_infection-parameters_attraction
+  print "setup-infection-parameters: insect attraction parameters set"    
+  
+  ;_____ PROB INSECT WOUNDING _____
+  setup_infection-parameters_insect-wounding
+  print "setup-infection-parameters: insect wounding parameters set"    
+
+  ; CHECK: clear R when done with varbs (make sure they aren't reused)
+  if debug-mode? [
+    check-infection-parameters
+  ]
+  
+end
+
+;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+; SUSCEPTIBILITY
+;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+to set_infection-parameters_susceptibility [ age-range ]
+  
+  ; For age-dependent infection susceptibility and age-mortality susceptibility, the same inflection point should be used
+  r:eval "suscept.infl  <- function(n) { rnorm( n, 35, 2) }"  ; inflection point, mean = 35
+  r:eval "suscept.k     <- function(n) { rgamma(n, shape = 10, rate = 1/(0.225 / 10) ) }"   ; decay rate, mean = ~0.225
+  
+  ;______________________________________________________________________________________________________________________________________________________________________
+  ; INFECTION SUSCEPTIBILITY VS. AGE (PROBABILITY THAT A TREE IS INFECTED WHEN DIRECTLY EXPOSED)
+  ;--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  ; Infection susceptibility: comes from Witcosky et al. 1986a and Hessburg and Hansen 1986a
+  ; This is the infection susceptibility for all trees in the age-independent scenario and the maximum infection susceptibility for young (< 30 - 40) trees in the age-dependent scenarios
+  ; Binomial distribution based on inoculation trial data  
+  
+  ; NEW: data from Witcosky et al 1986 (Hylastes) + data from Hessburg and Hansen 1986a
+  r:eval "n.trials_inoc_HH1986a     <- 66" ; Hessburg and Hansen 1986a inoculation trials - number inoculated
+  r:eval "n.successes_inoc_HH1986a  <- 50" ; Hessburg and Hansen 1986a inoculation trials - number infected
+  r:eval "n.trials_inoc_Wit1986a    <- 20" ; Witcosky et al. 1986a inoculation trials - number inoculated
+  r:eval "n.successes_inoc_Wit1986a <- 16" ; Witcosky et al. 1986a inoculation trials - number infected
+  r:eval "n.trials_inoc             <- n.trials_inoc_HH1986a + n.trials_inoc_Wit1986a"
+  r:eval "n.successes_inoc          <- n.successes_inoc_HH1986a + n.successes_inoc_Wit1986a"
+  r:eval "prop.infection_inoc       <- n.successes_inoc / n.trials_inoc"
+  r:eval "suscept.inf.max_FUNC <- function( n ) {rbinom(n, prob = prop.infection_inoc, size = n.trials_inoc)/ n.trials_inoc}"
+  
+  ; old delete
+  ;  r:eval "suscept.inf_n.trials    <- 20"  ; proportion of trees inoculated
+  ;  r:eval "suscept.inf_n.successes <-  0.8 * suscept.inf_n.trials"  ; proportion of roots inoculated that became infected
+  ;  r:eval "suscept.inf_prop        <- suscept.inf_n.successes / suscept.inf_n.trials"   ; proportion of inoculations resulting in infection
+  ;  r:eval "suscept.inf.max_FUNC    <- function(n) {rbinom(n, prob = suscept.inf_prop, size = suscept.inf_n.trials) / suscept.inf_n.trials }"
+  
+  
+  
+  ; Set up minimum infection susceptibility, for age-dependent scenarios
+  if age-inf-suscept != "age-indep" [
+    ; Age-dependent 1: Decline from 0.9 to 0.1 at age 30-40
+    if age-inf-suscept = "age-dep-1" [
+      r:eval "suscept.inf_min_mean_age.dep <- 0.1"
+    ]
+    ; Age-dependent 2: Decline from 0.9 (mean) to 0.3 (mean) at age 30-40
+    if age-inf-suscept = "age-dep-2" [
+      r:eval "suscept.inf_min_mean_age.dep <- 0.3"
+    ] 
+    r:eval "suscept.inf_min_beta_age.dep <- 50"
+    r:eval "suscept.inf_min_alpha_age.dep <- get_beta.alpha(suscept.inf_min_mean_age.dep, suscept.inf_min_beta_age.dep)"
+    r:eval "suscept.inf.min_age.dep_FUNC <- function(n = 1) { rbeta(n, suscept.inf_min_alpha_age.dep, suscept.inf_min_beta_age.dep) }"
+  ]
+  ;--------------------------------------------------------------------------------------------------------------------------------------------------------------
+  ; INFECTION SUSCEPTIBILITY FUNCTION
+  r:eval ( word   
+    "age.bsrd.inf.suscept_FUNC <- function ( age.input, assumption, n = 1) {\n"
+      "calc <- 0\n"
+      "suscept.inf.max <- suscept.inf.max_FUNC(n)\n"                 ; max infection susceptibility for all assumption
+      ; use equation based on the scenario
+      "if (assumption == \"age-dependent\") {\n"                       ; if an age-dependent assumption,
+        "suscept.inf.min <- suscept.inf.min_age.dep_FUNC(n)\n"
+        "calc <- ( suscept.inf.max - suscept.inf.min ) / ( 1 + exp ( suscept.k(n) * (age.input - suscept.infl(n)) )) + suscept.inf.min \n"      ; Sigmoid function    
+      "} else { calc <- suscept.inf.max_FUNC(n) + age.input * 0 }\n"
+      "return(calc)\n"
+    "}\n"
+  )
+  ;--------------------------------------------------------------------------------------------------------------------------------------------------------------
+  ; SETTING UP PARAMETER LISTS IN NETLOGO
+  ifelse age-inf-suscept != "age-indep" [      ; For an age-dependent infection assumption
+    foreach age-range [ this-age ->             ; add an item to the list for each possible tree age given parameter settings, in order
+      set age-bsrd-inf-suscept_list  ( lput (
+        ( r:get ( word "age.bsrd.inf.suscept_FUNC (" this-age ", \"age-dependent\", n = 100)" ) )
+      ) age-bsrd-inf-suscept_list  )
+      if sensitivity-analysis-param = "age-infection-susceptibility" [
+        set age-bsrd-inf-suscept_list ( map [ i -> map [ j -> limit-prob-values ( j * sensitivity-analysis-multiplier ) ] i ] age-bsrd-inf-suscept_list )
+      ]
+    ]
+  ]
+  ; If infection susceptibility is assumed independent of age
+  [
+    set age-bsrd-inf-suscept_list ( r:get ( word "age.bsrd.inf.suscept_FUNC (0, \"age-independent\", n = 300)" ) )
+    if sensitivity-analysis-param = "age-infection-susceptibility" [
+      set age-bsrd-inf-suscept_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] age-bsrd-inf-suscept_list )
+    ]
+  ]
+  ;______________________________________________________________________________________________________________________________________________________________________
+  ; MORTALITY SUSCEPTIBILITY VS. AGE and TIME-SINCE-INFECTED (PROBABILITY THAT A TREE DIES WHEN INFECTED)
+  ; ----------------------------------------------------------------------------------------------------------------------------------
+  ; Based on the description of mortality provided by Witcosky and Hansen 1985 and Hansen and Goheen 1988: 
+  ; Few young trees die in the first year of infection, most in the second, some in the third and fourth, with
+  ; a very small number surviving as long as 10 years
+  ; ----------------------------------------------------------------------------------------------------------------------------------
+  ; Setup equations
+  
+  ; Minimum age-mort-suscept (old trees)
+  r:eval "suscept.mort_old_mean  <- 0.005"  ; mean = 0.5%, or 1/200 old, infected trees dies per year on average
+  r:eval "suscept.mort_old_beta  <- 100"     ; distribution parameter
+  r:eval "suscept.mort_old_alpha <- get_beta.alpha(suscept.mort_old_mean, suscept.mort_old_beta)"
+  r:eval "suscept.mort.old_FUNC  <- function(n = 1) { rbeta(n, suscept.mort_old_alpha, suscept.mort_old_beta) }"
+  
+  ; Maximum age-mort-suscept depends on time-since-inf (young trees)
+  ; during the year the tree becomes infected
+  r:eval "suscept.mort_young_mean_y0 <- 0.1"
+  r:eval "suscept.mort_young_beta_y0 <- 80"
+  r:eval "suscept.mort_young_alpha_y0 <- get_beta.alpha(suscept.mort_young_mean_y0, suscept.mort_young_beta_y0)"
+  r:eval "suscept.mort.young_FUNC_y0 <- function(n = 1) { rbeta(n, suscept.mort_young_alpha_y0, suscept.mort_young_beta_y0) }"
+  
+  ; after the year of infection
+  r:eval "suscept.mort_young_mean <- 0.3"
+  r:eval "suscept.mort_young_beta <- 30"
+  r:eval "suscept.mort_young_alpha <- get_beta.alpha(suscept.mort_young_mean, suscept.mort_young_beta)"
+  r:eval "suscept.mort.young_FUNC <- function(n = 1) { rbeta(n, suscept.mort_young_alpha, suscept.mort_young_beta) }"
+  
+  ; FUNCTION
+  r:eval ( word
+    "age.bsrd.mort.suscept_FUNC <- function ( age.input, time.since.inf, n = 1) {\n"
+      "if (time.since.inf == 0) {\n" ; Lower susceptibility during year infected
+        "suscept.mort.old <- suscept.mort.old_FUNC(n) * ( suscept.mort_young_mean_y0 / suscept.mort_young_mean )\n"
+        "suscept.mort.young <- suscept.mort.young_FUNC_y0(n)\n"
+      "} else {\n"
+        "suscept.mort.old <- suscept.mort.old_FUNC(n)\n"
+        "suscept.mort.young <- suscept.mort.young_FUNC(n)\n"
+      "}\n"
+      "calc <- ( suscept.mort.young - suscept.mort.old ) / ( 1 + exp ( suscept.k(n) * (age.input - suscept.infl(n)) )) + suscept.mort.old\n"
+      "return(calc)\n"
+    "}"
+  )
+  ;--------------------------------------------------------------------------------------------------------------------------------------------------------------
+  ; SETTING UP PARAMETER LISTS IN NETLOGO
+  set age-bsrd-mort-suscept_year-of-infection_list      []
+  set age-bsrd-mort-suscept_years-after-infection_list  []
+  
+  foreach age-range [ this-age ->
+    ; Mortality rate in the year that tree is infected (low)
+    set age-bsrd-mort-suscept_year-of-infection_list     ( lput ( r:get ( word "age.bsrd.mort.suscept_FUNC ( age.input = " this-age ", time.since.inf = 0, n = 100)" ) ) age-bsrd-mort-suscept_year-of-infection_list     )
+    ; Mortality rate in the years after the initial year of infection (high)
+    set age-bsrd-mort-suscept_years-after-infection_list ( lput ( r:get ( word "age.bsrd.mort.suscept_FUNC ( age.input = " this-age ", time.since.inf = 1, n = 100)" ) ) age-bsrd-mort-suscept_years-after-infection_list )
+  ]
+  if sensitivity-analysis-param = "age-bsrd-mortality-susceptibility" [
+    set age-bsrd-mort-suscept_year-of-infection_list     ( map [ i -> map [ j -> limit-prob-values ( j * sensitivity-analysis-multiplier ) ] i ] age-bsrd-mort-suscept_year-of-infection_list     )
+    set age-bsrd-mort-suscept_years-after-infection_list ( map [ i -> map [ j -> limit-prob-values ( j * sensitivity-analysis-multiplier ) ] i ] age-bsrd-mort-suscept_years-after-infection_list )
+  ]
+end
+
+;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+; PROB ROOT INFECTION FUNCTIONS
+;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+to setup_infection-parameters_root
+  define-prob-root-contact-function ; CHECK change number
+  let max-list-age ( max-tree-age + dead-attr-duration_max + 1 )
+  ; print max-list-age
+  set prob-root-contact_1cellDist_list  ( r:get ( word "prc.list.FUNC(max.age = " ( max-tree-age + dead-attr-duration_max + 1 ) ", cell.dist = " 1 ", n.values = " 30 ")" ) )
+  set prob-root-contact_2cellDist_list  ( r:get ( word "prc.list.FUNC(max.age = " ( max-tree-age + dead-attr-duration_max + 1 ) ", cell.dist = " 2 ", n.values = " 30 ")" ) )
+  set prob-root-contact_3cellDist_list  ( r:get ( word "prc.list.FUNC(max.age = " ( max-tree-age + dead-attr-duration_max + 1 ) ", cell.dist = " 3 ", n.values = " 30 ")" ) )
+  set prob-root-contact_4cellDist_list  ( r:get ( word "prc.list.FUNC(max.age = " ( max-tree-age + dead-attr-duration_max + 1 ) ", cell.dist = " 4 ", n.values = " 30 ")" ) )
+  
+  ; PROB ROOT TRANSMISSION SETUP
+  ; Probability of getting infection transmission from 1 pair of roots in contact
+
+  ; PARAMETER ADJUSTMENT
+  ifelse prt-exclude-data? [ ; if excluding growth chamber data
+    r:eval "prob.root.transmission_n.trials     <- 273"     ; Total number of grafts/contacts observed between pairs of trees
+    r:eval "prob.root.transmission_n.successes  <- 35"      ; Number of successful infection transmissions via roots in observed pairs
+  ]
+  [
+    r:eval "prob.root.transmission_n.trials     <- 367"     ; Total number of grafts/contacts observed between pairs of trees
+    r:eval "prob.root.transmission_n.successes  <- 98"      ; Number of successful infection transmissions via roots in observed pairs
+  ]
+  
+  
+  r:eval "prob.root.transmission_proportion   <- prob.root.transmission_n.successes / prob.root.transmission_n.trials" ; Proportion of successful root transmissions upon contact with an infected graft/contact
+  r:eval "prob.root.transmission.FUNC <- function(n)  {rbinom(n = n, size = prob.root.transmission_n.trials, prob = prob.root.transmission_proportion) / prob.root.transmission_n.trials}" ; function to draw n values of this parameter
+  
+  ifelse prt-discount-by-contact-type? [
+    ; Using data from Reynolds 1981, I calculaed the count of root contacts by type, with type 1 being very weak contacts and type 4 being grafts
+    ; limited to 2.5 to 5.0 m, which is the range of spacings in the model (with a little buffer)
+    r:eval "sum_by_type_2.5to5m <- c( n.type1 = 50, n.type2 = 11, n.type3 = 6,  n.type4 = 5)"
+    r:eval "sum_allTypes_2.5to5m <- sum(sum_by_type_2.5to5m)"                                                   ; calculate the total contacts at this distance
+    r:eval "prop_by_type_2.5to5m <- sum_by_type_2.5to5m / sum_allTypes_2.5to5m"                                 ; calculate the proportion for each type
+    r:eval "names(prop_by_type_2.5to5m) <- c(\"prop_type1\", \"prop_type2\", \"prop_type3\", \"prop_type4\")"   ; name appropriately
+    
+    ; Using sample size, draw values from a binomial distribution for the proportion of each contact type
+    r:eval "prop.contacts_type1 <- rbinom(250, prob = prop_by_type_2.5to5m[\"prop_type1\"], size = sum_allTypes_2.5to5m) / sum_allTypes_2.5to5m"
+    r:eval "prop.contacts_type2 <- rbinom(250, prob = prop_by_type_2.5to5m[\"prop_type2\"], size = sum_allTypes_2.5to5m) / sum_allTypes_2.5to5m"
+    r:eval "prop.contacts_type3 <- rbinom(250, prob = prop_by_type_2.5to5m[\"prop_type3\"], size = sum_allTypes_2.5to5m) / sum_allTypes_2.5to5m"
+    r:eval "prop.contacts_type4 <- rbinom(250, prob = prop_by_type_2.5to5m[\"prop_type4\"], size = sum_allTypes_2.5to5m) / sum_allTypes_2.5to5m"
+    
+    ; Probability of transmission for each contact type is based on the proportion of contacts of that type and a discount factor applied to the
+    ; weakest contact based on Reynolds 1981 and Reynolds and Bloomberg 1982
+    r:eval "prob.root.transm_type1 <- prop.contacts_type1*prob.root.transmission.FUNC(250)*0.5"
+    r:eval "prob.root.transm_type2 <- prop.contacts_type2*prob.root.transmission.FUNC(250)"
+    r:eval "prob.root.transm_type3 <- prop.contacts_type3*prob.root.transmission.FUNC(250)"
+    r:eval "prob.root.transm_type4 <- prop.contacts_type4*prob.root.transmission.FUNC(250)"
+    ; Total probability is the sum of the probabilities for each contact type
+    set prob-root-transmission_list r:get "prob.root.transm_type1 + prob.root.transm_type2 + prob.root.transm_type3 + prob.root.transm_type4"
+  ]
+  [ set prob-root-transmission_list r:get "prob.root.transmission.FUNC( n = 250 )" ]
+  
+  if sensitivity-analysis-param = "prob-root-transmission" [  
+    set prob-root-transmission_list ( map [ i -> i * sensitivity-analysis-multiplier ] prob-root-transmission_list )
+  ]
+
+end
+
+to define-prob-root-contact-function
+  ; CHECK final decisions with roots
+  ifelse prc_conservative? = false [
+    ; NON-CONSERVATIVE - passes right through canopy closure points. Data from Mauer and Palatova 2012 excluded 
+    r:eval "max.root.extent.A        <- 0.5931181"   ; based on fit of logarithmic growth function on root extent data
+    r:eval "max.root.extent.B        <- 0.4346111"   ; based on fit of logarithmic growth function on root extent data
+  ]
+  [
+    ; CONSERVATIVE - Parameters are mean between regression with all data vs regression without Mauer and Palatova 2012
+    r:eval "max.root.extent.A        <- 0.4936559"   ; based on fit of logarithmic growth function on root extent data
+    r:eval "max.root.extent.B        <- 0.4568265"   ; based on fit of logarithmic growth function on root extent data
+  ]
+  r:eval "max.root.extent.FUNC <- function ( age.input ) { return( rnorm(1, max.root.extent.A * age.input ^ max.root.extent.B, 0.4 ) ) }"
+  ; FIX : alt values being used
+  r:eval "prob.root.contact_k_FUNC <- function( age.input ) {  ( 4 - 1.5 ) / ( 1 + exp ( exp ( rnorm(1, 0.3, 0.05) * (age.input - rnorm(1, 20,2) )))) + 1.5  }"
+  r:eval "prob.root.contact_infl   <- 0.5"  ; inflection point for probability of root presence (root density) with distance, used to calculate prob root contact
+  
+ ;; Prob root presence function (Tree1, beginning at 0)
+ r:eval (word
+    "prob.root.presence.FUNC_t1 <- function ( x.distance, age.input ) {\n"
+      "1 / ( 1 + exp ( prob.root.contact_k_FUNC(age.input) * ( x.distance - prob.root.contact_infl * max.root.extent.FUNC(age.input) ) ) )\n"
+    "}"
+  )
+
+  ; Prob root presence function (Tree2, inverted, from starting.distance)
+  r:eval (word
+    "prob.root.presence.FUNC_t2 <- function ( x.distance, age.input, intertree.distance.input ) { \n"
+    "1 / ( 1 + exp ( -prob.root.contact_k_FUNC(age.input) * ( x.distance - ( intertree.distance.input - prob.root.contact_infl * max.root.extent.FUNC(age.input) ) ) ) ) \n"
+  "}"
+    )
+
+  ; Function that combines the probability of root presence for each of the two trees to calculate prob root presence of both trees at a given distance
+  r:eval (word
+    "prob.root.presence_combined.FUNC <- function ( x.distance, age.t1.input, age.t2.input, intertree.distance.input ) { \n"
+      "prob.root.presence.FUNC_t1( x.distance, age.t1.input) * prob.root.presence.FUNC_t2(x.distance, age.t2.input, intertree.distance.input) \n"
+    "}"
+  )
+
+  ; THE PROBABILITY OF ROOT CONTACT FUNCTION, size 1 insect output
+  r:eval ( word
+    "prob.root.contact.FUNC <- function (age.t1.input, age.t2.input, intertree.distance.input) { \n"
+      "calc <- ( as.numeric( ( integrate( function (x) { \n"
+        "prob.root.presence_combined.FUNC( x, age.t1.input, age.t2.input, intertree.distance.input ) \n"
+      "}, \n"
+      "lower = 0, upper = intertree.distance.input ) )$value )) \n"
+      "calc <- replace(calc, calc < 0, 0) \n"
+      "calc <- replace(calc, calc > 1, 1) \n"
+      "return(calc) \n"
+    "}"
+  )
+
+  ; Function to generate nested lists of probability of root contact values given the max age, distance (cells) between trees
+  r:eval ( word
+    "prc.list.FUNC <- function( max.age, cell.dist, n.values = 1) {\n"
+      "prc.list <- list()            \n"    ; initialize a list
+      "dist <- cell.dist * 1.524     \n"    ; Foreach age combination
+      "age.list <- c(1:max.age)      \n"    ; foreach age (1->max.age), make a list of prc values for each age
+      "for (age.t1 in age.list ){    \n"    ; for tree 1 age in age list
+        "age.t1.list <- list()       \n"
+        "for ( age.t2 in age.t1:max.age ) {\n"
+          "age.t1.list <- append(age.t1.list, list(\n"
+              "replicate(n.values, prob.root.contact.FUNC(age.t1, age.t2, dist))\n"
+            ")\n"
+          ")\n"
+        "}\n"
+        "prc.list <- append(prc.list, list(age.t1.list))\n"
+      "}\n"
+      "return(prc.list)\n"
+    "}"
+  )
+end
+
+to check-root-functions
+  ; using age = 10 yr and dist = 3 m
+  print (word "max.root.extent.A: " r:get "max.root.extent.A")
+  print (word "max.root.extent.B: " r:get "max.root.extent.B")
+  print (word "max.root.extent.FUNC: " r:get "max.root.extent.FUNC( 10 )")
+  print (word "prob.root.contact_k_FUNC: " r:get "prob.root.contact_k_FUNC(10)")
+  print (word "prob.root.contact_infl.x_FUNC: " r:get "prob.root.contact_infl")
+  print (word "prob.root.presence.FUNC_t1: " r:get "prob.root.presence.FUNC_t1 ( 3, 10 )")
+  print (word "prob.root.presence.FUNC_t2: " r:get "prob.root.presence.FUNC_t2 ( 3, 10, 3)")
+  print (word "prob.root.presence_combined.FUNC: " r:get "prob.root.presence_combined.FUNC( 2, 10, 10, 3)" )
+  print (word "prob.root.contact.FUNC: " r:get "prob.root.contact.FUNC ( 10, 10, 3)" )
+  print (word "prc.list.FUNC " r:get "prc.list.FUNC( 2, 2, n.values = 2)" )
+end
+
+; REPORT PROB ROOT CONTACT
+
+to check-prc-lists
+  let this-item 0
+  let this-age ( this-item + 1)
+  foreach prob-root-contact_4cellDist_list [ this-list ->
+    print ( word "item: " this-item "; this-age: " this-age " length: " length this-list )
+    set this-item ( this-item + 1 )
+    set this-age (this-age + 1)
+  ]
+  ;set prob-root-contact_2cellDist_list 
+  ;set prob-root-contact_3cellDist_list 
+  ;set prob-root-contact_4cellDist_list 
+end
+
+; Draw a prob-root-contact value from the correct list and sublist based on age and distance
+to-report draw-prob-root-contact [ age.tree1 age.tree2 cell.distance ]
+  ; Lists are ordered from smallest age to largest age, with no repeated combinations of age
+  ; (e.g., [ age 1: [ [1,1], [1,2], [1,3] ], age 2: [ [2,2], [2,3] ], age 3: [ [3,3] ] ] )
+  ; Therefore, the prob-root-contact list needs to be indexed first for the lowest tree age and
+  ; NOTE: if you get an error, make sure the ages you're trying to use exist in the landscape, as
+  ; determined by the max of the rotation lengths.
+  let ages.list ( list age.tree1 age.tree2 )
+  let age1 min ( list (min ages.list) max-tree-age)
+  let age2 min ( list (max ages.list) max-tree-age )
+  ifelse ( age2 > ( max ( list rotation:short-rotation rotation:long-rotation ) ) ) [ report 0 ] [   ; report 0 if age is outside of range allowed
+    ; otherwise: draw a value
+    if cell.distance = 1 [ report ( one-of ( item ( age2 - age1 ) ( item ( age1 - 1 ) prob-root-contact_1cellDist_list ) ) ) ]
+    if cell.distance = 2 [ report ( one-of ( item ( age2 - age1 ) ( item ( age1 - 1 ) prob-root-contact_2cellDist_list ) ) ) ]
+    if cell.distance = 3 [ report ( one-of ( item ( age2 - age1 ) ( item ( age1 - 1 ) prob-root-contact_3cellDist_list ) ) ) ]
+    if cell.distance = 4 [ report ( one-of ( item ( age2 - age1 ) ( item ( age1 - 1 ) prob-root-contact_4cellDist_list ) ) ) ]
+  ]
+end
+
+; CALCULATE PROB ROOT CONTACT for a tree of a given age with an infected-neighbor age list at a given distance
+to-report calculate-prob-root-contact [ my-age nbor-age-list cell-distance ]
+  ifelse nbor-age-list != [] [   ; if there are any ages in the list
+    ; use each age pair (the tree calling the function w/ age = my-age and each of the ages in the nbor-age-list)
+    let prc-list ( map [ i -> ( draw-prob-root-contact i my-age cell-distance ) ] nbor-age-list ) ; and calculate a prob-root-contact (prc) for each
+    ;print prc-list ; DELETE test
+    report ( reduce + prc-list ) ; report the sum of the values in the list
+  ] [ report 0 ]                 ; else return 0
+end
+
+
+;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+; PROB INSECT INFECTION FUNCTIONS
+;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+; PROB insect INFESTED (The probability that an insect carries L. wagneri spores, from Witcosky et al 1986a)
+to setup_infection-parameters_insect-infested
+
+  ; S. carinatus
+  r:eval "prob.infested_SC_proportion <- 0.004618938"
+  r:eval "prob.infested_SC_n.trials   <- 433"
+  set prob-insect-infested_SC_list r:get "rbinom( n = 250, size = prob.infested_SC_n.trials, prob = prob.infested_SC_proportion ) / prob.infested_SC_n.trials"
+  ; P. fasciatus
+  r:eval "prob.infested_PF_proportion <- 0.016129032"
+  r:eval "prob.infested_PF_n.trials   <- 62"
+  set prob-insect-infested_PF_list r:get "rbinom( n = 250, size = prob.infested_PF_n.trials, prob = prob.infested_PF_proportion ) / prob.infested_PF_n.trials"
+  ; H. nigrinus
+  r:eval "prob.infested_HN_proportion <- 0.023121387"
+  r:eval "prob.infested_HN_n.trials   <- 173"
+  set prob-insect-infested_HN_list r:get "rbinom( n = 250, size = prob.infested_HN_n.trials, prob = prob.infested_HN_proportion ) / prob.infested_HN_n.trials"
+  ; Apply sensitivity analysis multiplier if necessary
+  if ( sensitivity-analysis-param = "prob-insect-infested_SC" ) [ set prob-insect-infested_SC_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-infested_SC_list ) ]
+  if ( sensitivity-analysis-param = "prob-insect-infested_PF" ) [ set prob-insect-infested_PF_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-infested_PF_list ) ]
+  if ( sensitivity-analysis-param = "prob-insect-infested_HN" ) [ set prob-insect-infested_HN_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-infested_HN_list ) ]
+  if ( sensitivity-analysis-param = "prob-insect-infested" ) [
+    set prob-insect-infested_SC_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-infested_SC_list )
+    set prob-insect-infested_PF_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-infested_PF_list )
+    set prob-insect-infested_HN_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-infested_HN_list )
+  ]
+end
+
+; PROB insect DISPERSAL LISTS
+to setup_infection-parameters_insect-dispersal
+  ; delete tests
+  ;  print ( word "sc: " prob-insect-dispersal_SC_list )
+  ;  print ( word "length: " length prob-insect-dispersal_SC_list )
+  ;  print ( word "pf: " prob-insect-dispersal_PF_list )
+  ;  print ( word "length: " length prob-insect-dispersal_PF_list )
+  ;  print ( word "hn: "prob-insect-dispersal_HN_list )
+  ;  print ( word "length: " length prob-insect-dispersal_HN_list )
+  foreach (range 1 ( max-insect-distance_SC_cell + 2 ) ) [ current-ring ->
+    let current-distance ( current-ring * intercell-distance )
+    set prob-insect-dispersal_SC_list ( lput ( prob-insect-dispersal "SC" current-distance ) prob-insect-dispersal_SC_list )
+  ]
+  ;print prob-insect-dispersal_SC_list
+  foreach ( range 1 ( max-insect-distance_PF_cell + 2 ) ) [ current-ring ->
+    let current-distance ( current-ring * intercell-distance )
+    set prob-insect-dispersal_PF_list ( lput ( prob-insect-dispersal "PF" current-distance ) prob-insect-dispersal_PF_list )   ; Add to the list (PF and HN assumed to be the same)
+    set prob-insect-dispersal_HN_list prob-insect-dispersal_PF_list
+  ]
+  ;  print ( word "sc: " prob-insect-dispersal_SC_list ) ; delete tests
+  ;  print ( word "length: " length prob-insect-dispersal_SC_list )
+  ;  print ( word "pf: " prob-insect-dispersal_PF_list )
+  ;  print ( word "length: " length prob-insect-dispersal_PF_list )
+  ;  print ( word "hn: "prob-insect-dispersal_HN_list )
+  ;  print ( word "length: " length prob-insect-dispersal_HN_list )
+  if sensitivity-analysis-param = "prob-insect-dispersal" [
+    set prob-insect-dispersal_SC_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-dispersal_SC_list )
+    set prob-insect-dispersal_PF_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-dispersal_PF_list )
+    set prob-insect-dispersal_HN_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-dispersal_HN_list )
+  ]
+  if sensitivity-analysis-param = "prob-insect-dispersal_SC" [
+    set prob-insect-dispersal_SC_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-dispersal_SC_list )
+  ]
+  if sensitivity-analysis-param = "prob-insect-dispersal_PF" [
+    set prob-insect-dispersal_PF_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-dispersal_PF_list )
+  ]
+  if sensitivity-analysis-param = "prob-insect-dispersal_HN" [
+    set prob-insect-dispersal_HN_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-dispersal_HN_list )
+  ]
+end
+
+
+
+to setup_infection-parameters_attraction
+  
+  ; Probability dead lose attraction (when between the min and the max)
+  ifelse ( dead-attr-duration_max < dead-attr-duration_min ) [ user-message "ISSUE: Dead attraction duration max < min. Impossible. Try again. Please." stop ]
+  [
+    ifelse ( dead-attr-duration_max > dead-attr-duration_min ) [
+      set prob-attr-dead-loss ( 1 / ( dead-attr-duration_max - dead-attr-duration_min + 1 ) )
+    ] [ set prob-attr-dead-loss 1 ]
+  ]
+  
+  ; MANAGEMENT (THINNING/HARVEST) EFFECTS - THE INCREASE IN ATTRACTIVENESS/WOUNDING PROBABILITY WHEN IN THINNED/HARVESTED STANDS _______
+  ; PROPORTION OF STUMPS RELATIVE TO STANDS IN LITERATURE SOURCE FOR PROP. LIVE TREES WOUNDED IN THINNED STANDS (WITCOSKY ET AL 1986a)
+  ;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  ifelse attr-mgmt_conservative? [
+    ; In Witcosky et al. 1986a, stands were thinned from 2000-4000 tph to 900-1000 tph
+    r:eval "stumpsRmv_WitcoskyEtAl1986a <- c(2000-1000, 4000 - 900)" ; == 1000 stumps/ha at least, == 3100 stumps/ha at most
+    
+    ; Assuming a linear relationship between the level of attraction and stumps created, this value was scaled to create a "thinning factor"
+    ; for attraction, scaled with a minimum value of 1. To do this, I first created a variable for the proportion of stumps per ha
+    ; generated in each model management scenario (thinning vs. harvest) relative to the stumps/ha in the literature source. This was generated
+    ; as a uniform distribution between the minimum and maximum number of stumps removed/ha to account for uncertainty because the literature
+    ; did not specify wounding values by thinning treatment.
+    
+    ; Calculate the density of stumps in model scenarios relative to density of stumps in the literature (Witcosky et al 1986a)
+    ; short-rotation harvest: from 478.40 tph to 0.00 tph
+    r:eval "propStumps_int.harv_max     <- 478.40 / min(stumpsRmv_WitcoskyEtAl1986a)"  ; Harvest:  478.40 ->   0.00 tph (-478.40 tph)
+    ; long-rotation managment:
+    r:eval "propStumps_ext.thin.pct_max <- 335.07 / min(stumpsRmv_WitcoskyEtAl1986a)"  ; PCT:     1076.39 -> 741.32 tph (-335.07 tph)
+    r:eval "propStumps_ext.thin.ct1_max <- 345.95 / min(stumpsRmv_WitcoskyEtAl1986a)"  ; CT1:      741.32 -> 395.37 tph (-345.95 tph)
+    r:eval "propStumps_ext.thin.ct2_max <- 148.26 / min(stumpsRmv_WitcoskyEtAl1986a)"  ; CT2:      395.37 -> 247.11 tph (-148.26 tph)
+    r:eval "propStumps_ext.harv_max     <- 247.11 / min(stumpsRmv_WitcoskyEtAl1986a)"  ; HARVEST:  247.11 ->   0.00 tph (-247.11 tph)
+    
+    ; Calculate the max density of stumps in model scenarios relative to density of stumps in the literature (Witcosky et al 1986a)
+    r:eval "propStumps_mgmt_max <- max(c(propStumps_int.harv_max, propStumps_ext.thin.pct_max, propStumps_ext.thin.ct1_max, propStumps_ext.thin.ct2_max, propStumps_ext.harv_max))"
+    
+    ; NORMALIZE stump proportion values to that max value (range: 0 to 1)
+    ; short-rotation harvest:
+    r:eval "propStumps_int.harv_max_norm     <- propStumps_int.harv_max     / propStumps_mgmt_max"
+    ; long-rotation managment:
+    r:eval "propStumps_ext.thin.pct_max_norm <- propStumps_ext.thin.pct_max / propStumps_mgmt_max"
+    r:eval "propStumps_ext.thin.ct1_max_norm <- propStumps_ext.thin.ct1_max / propStumps_mgmt_max"
+    r:eval "propStumps_ext.thin.ct2_max_norm <- propStumps_ext.thin.ct2_max / propStumps_mgmt_max"
+    r:eval "propStumps_ext.harv_max_norm     <- propStumps_ext.harv_max     / propStumps_mgmt_max"
+  ]
+  [ ; Using a less conservative approach, don't scale proportionally to the stump densities in Witcosky et al. 1986 vs in the model
+    ; Calculate the density of stumps in model scenarios relative to density of stumps in the literature (Witcosky et al 1986a)
+    ; short-rotation harvest: from 478.40 tph to 0.00 tph
+    r:eval "sph_int.harv       <- 478.40"  ; Harvest:  478.40 ->   0.00 tph (-478.40 tph)
+    ; long-rotation managment:
+    r:eval "sph_ext.thin.pct   <- 335.07"           ; PCT:     1076.39 -> 741.32 tph (-335.07 tph)
+    r:eval "sph_ext.thin.ct1   <- 345.95"           ; CT1:      741.32 -> 395.37 tph (-345.95 tph)
+    r:eval "sph_ext.thin.ct2   <- 148.26"           ; CT2:      395.37 -> 247.11 tph (-148.26 tph)
+    r:eval "sph_ext.harv       <- 247.11"           ; HARVEST:  247.11 ->   0.00 tph (-247.11 tph)
+    ; Calculate the max density of stumps in model scenarios relative to density of stumps in the literature (Witcosky et al 1986a)
+    r:eval "sph_mgmt_max <- max(c(sph_int.harv, sph_ext.thin.pct, sph_ext.thin.ct1, sph_ext.thin.ct2, sph_ext.harv))"
+    ; Normalize stump proportion values to that max value (range: 0 to 1)
+    r:eval "sph_int.harv_norm     <- sph_int.harv     / sph_mgmt_max"
+    ; long-rotation managment:
+    r:eval "sph_ext.thin.pct_norm <- sph_ext.thin.pct / sph_mgmt_max"
+    r:eval "sph_ext.thin.ct1_norm <- sph_ext.thin.ct1 / sph_mgmt_max"
+    r:eval "sph_ext.thin.ct2_norm <- sph_ext.thin.ct2 / sph_mgmt_max"
+    r:eval "sph_ext.harv_norm     <- sph_ext.harv     / sph_mgmt_max"
+    
+  ]
+  ; GENERATE THINNING EFFECT
+  ; PROPORTION OF TREES WOUNDED IN THINNED STAND IN THE STAND INTERIOR. OVERESTIMATES because stands were VERY dense
+  ; and the density of stumps created during thinning was 2+ X what would be seen in the management represented in the model
+  r:eval "wound_live.nonInf.thin_overEst <- rbinom(n = 300, size = 1240, prob = (131/1240))/1240"         ; STAND INTERIOR, MEASURED: Witcosky et al 1986a (combined binom data, 131/1240 trees wounded)
+  ; A) Rudinsky and Zethner-Moller 1967 - 5.692X as much wounding on live, non-inf trees in thinned areas relative to live, non-inf trees outside of thinned areas
+  r:eval "effect.mgmt_RZM1967  <- 74 / 13" ; Wounds per area, live trees inside thinned area / live trees outside thinned area
+  ; B) Sullivan et al 2003 - Ratios of mean insect abundance (all species) for different severities of disturbance relative to the undistubed control
+  r:eval "effect.mgmt_Sull2003 <- c(1.517788725, 2.029009305, 3.035030104)"
+  ; COMBINED into a uniform distribution (because it is not clear which is closest to the actual value or the shape of such a distribution)
+  r:eval "effect.mgmt_combined <- c(effect.mgmt_Sull2003, effect.mgmt_RZM1967)"
+  r:eval "effect.mgmt_fullRange <- runif(300, min(effect.mgmt_combined), max(effect.mgmt_combined))"        ; Sample of range of values (uniform distr)
+  r:eval "effect.mgmt_combined_lowerBound <- min(effect.mgmt_combined)"                                     ; calc the lower boundary
+  
+  ifelse attr-mgmt_conservative? [
+    r:eval "effect.mgmt_combined_upperBound <- max(effect.mgmt_combined)*propStumps_mgmt_max"                 ; and upper boundary
+    r:eval "effect.mgmt_combined_width <- effect.mgmt_combined_upperBound - effect.mgmt_combined_lowerBound"  ; and the range of values
+
+    ; Equation to calculate the thin effect for each mgmt scenario
+    r:eval "effect.mgmt.prop <-  function ( propStumps_mgmtSituation_max_norm ) { runif(100, effect.mgmt_combined_lowerBound, (effect.mgmt_combined_lowerBound + (effect.mgmt_combined_width * propStumps_mgmtSituation_max_norm ) ) ) }"
+  
+    ; SET ATTRACTION EFFECT FOR THINNING - Calculate thin effect for each mgmt scenario, stored as list
+    set attr-effect_mgmt_int-harv_list     r:get "round(effect.mgmt.prop(propStumps_int.harv_max_norm),     4)"
+    set attr-effect_mgmt_ext-thin-pct_list r:get "round(effect.mgmt.prop(propStumps_ext.thin.pct_max_norm), 4)"
+    set attr-effect_mgmt_ext-thin-ct1_list r:get "round(effect.mgmt.prop(propStumps_ext.thin.ct1_max_norm), 4)"
+    set attr-effect_mgmt_ext-thin-ct2_list r:get "round(effect.mgmt.prop(propStumps_ext.thin.ct2_max_norm), 4)"
+    set attr-effect_mgmt_ext-harv_list     r:get "round(effect.mgmt.prop(propStumps_ext.harv_max_norm),     4)"
+  ]
+  [
+    r:eval "effect.mgmt_combined_upperBound <- max(effect.mgmt_combined)"                                          ; and upper boundaries
+    r:eval "effect.mgmt_combined_width <- effect.mgmt_combined_upperBound - effect.mgmt_combined_lowerBound"   ; and the range of values
+    ; Equation to calculate the thin effect for each mgmt scenario
+    r:eval "effect.mgmt.prop <-  function ( sph_mgmtSituation_norm ) { runif(100, effect.mgmt_combined_lowerBound, (effect.mgmt_combined_lowerBound + (effect.mgmt_combined_width * sph_mgmtSituation_norm ) ) ) }"
+  
+    ; SET ATTRACTION EFFECT FOR THINNING - Calculate thin effect for each mgmt scenario, stored as list
+    set attr-effect_mgmt_int-harv_list     r:get "round(effect.mgmt.prop(sph_int.harv_norm),     4)"
+    set attr-effect_mgmt_ext-thin-pct_list r:get "round(effect.mgmt.prop(sph_ext.thin.pct_norm), 4)"
+    set attr-effect_mgmt_ext-thin-ct1_list r:get "round(effect.mgmt.prop(sph_ext.thin.ct1_norm), 4)"
+    set attr-effect_mgmt_ext-thin-ct2_list r:get "round(effect.mgmt.prop(sph_ext.thin.ct2_norm), 4)"
+    set attr-effect_mgmt_ext-harv_list     r:get "round(effect.mgmt.prop(sph_ext.harv_norm),     4)"
+  ]
+  
+
+ 
+  ; Increase for sensitivity analysis
+  if sensitivity-analysis-param = "attr-effect_mgmt" [ set attr-effect_mgmt_int-harv_list      ( map [ i -> i * sensitivity-analysis-multiplier ] attr-effect_mgmt_int-harv_list     ) ]
+  if sensitivity-analysis-param = "attr-effect_mgmt" [ set attr-effect_mgmt_ext-thin-pct_list  ( map [ i -> i * sensitivity-analysis-multiplier ] attr-effect_mgmt_ext-thin-pct_list ) ]
+  if sensitivity-analysis-param = "attr-effect_mgmt" [ set attr-effect_mgmt_ext-thin-ct1_list  ( map [ i -> i * sensitivity-analysis-multiplier ] attr-effect_mgmt_ext-thin-ct1_list ) ]
+  if sensitivity-analysis-param = "attr-effect_mgmt" [ set attr-effect_mgmt_ext-thin-ct2_list  ( map [ i -> i * sensitivity-analysis-multiplier ] attr-effect_mgmt_ext-thin-ct2_list ) ]
+  if sensitivity-analysis-param = "attr-effect_mgmt" [ set attr-effect_mgmt_ext-harv_list      ( map [ i -> i * sensitivity-analysis-multiplier ] attr-effect_mgmt_ext-harv_list     ) ]
+  
+  ;____________ 
+  ;ROAD EFFECT - THE INCREASE IN ATTRACTIVENESS/WOUNDING POTENTIAL WHEN ALONG ROADSIDES _______
+  ; Data: Witcosky et al 1986a ROAD/INTERIOR - more confidence (combined binom data); PROPORTION OF TREES WOUNDED ALONG ROADS IN THINNED STAND
+     r:eval "wound_live.nonInf.thin.road_overEst <- (rbinom(n = 100, size =  909, prob = (160/ 909))/ 909)"    ; MEASURED: Witcosky et al 1986a; 160/909 trees wounded
+     ; ROAD EFFECT = PROB WOUNDING ALONG ROAD (Witcosky et al 1986a) / PROB WOUNDING STAND INTERIOR (Witcosky et al 1986a)
+     r:eval "effect.road_WitcoskyEA1986 <- wound_live.nonInf.thin.road_overEst /  wound_live.nonInf.thin_overEst"
+  r:eval "effect.road <- round(sample(effect.road_WitcoskyEA1986, 300), 4)"
+  ; Set road effect
+  set attr-effect_road_list r:get "effect.road"
+  if sensitivity-analysis-param = "attr-effect_road" [ set attr-effect_road_list ( map [ i -> i * sensitivity-analysis-multiplier ] attr-effect_road_list ) ]
+  ;____________
+  ;DEAD EFFECT - THE INCREASE IN ATTRACTIVENESS/WOUNDING POTENTIAL FOR DEAD RELATIVE TO LIVE
+  ; A) MEASURED: Degree of wounding by HN (Rudinsky & Zethner-Moller 1967)
+        r:eval "effect.dead_RZM67 <- rep(193 / 74, 100)" ; Measured: Rudinsky and Zethner-Moller 1967 - dead thinned tree wounds / live tree wounds in thinned area (with much windthrow and DF beetle)
+      r:eval "effect.dead_RZM67_norm_0.25sd <- rnorm(100, 193 / 74, 0.25)"
+  ; B) MEASURED: insect abundance ratio (Harrington et al 1985)
+        r:eval "v.abund_live_Har85 <- c(71, 62, 40, 40)"              ; MEASURED: Harrington et al 1985 - insect abundances, live and dead trees (stumps) in a thinned plot
+        r:eval "v.abund_dead_Har85 <- c(94,123,119, 51)"
+      r:eval "effect.dead_Har85 <- rnorm(100,mean(v.abund_dead_Har85),sd(v.abund_dead_Har85)) / rnorm(100,mean(v.abund_live_Har85),sd(v.abund_live_Har85))"
+  ; C) MEASURED: Proportion of red/dead infected trees wounded / prop of inf live
+          r:eval "wound_live.inf_SC <- (rbinom(n = 100, size =  36, prob = (31 / 36)) / 36)"           ; MEASURED: Witcosky and Hansen 1985, by insect
+          r:eval "wound_live.inf_PF <- (rbinom(n = 100, size =  36, prob = (18 / 36)) / 36)"
+          r:eval "wound_live.inf_HN <- (rbinom(n = 100, size =  36, prob = (19 / 36)) / 36)"
+          r:eval "wound_dead.inf_SC <- (rbinom(n = 100, size =  24, prob = (24 / 24)) / 24)"           ; MEASURED: Witcosky and Hansen 1985, by insect
+          r:eval "wound_dead.inf_PF <- (rbinom(n = 100, size =  24, prob = (24 / 24)) / 24)"
+          r:eval "wound_dead.inf_HN <- (rbinom(n = 100, size =  24, prob = (22 / 24)) / 24)"
+        r:eval "effect.dead_SC_WitHan85 <- wound_dead.inf_SC / wound_live.inf_SC"                ; For SC only
+        r:eval "effect.dead_PF_WitHan85 <- wound_dead.inf_PF / wound_live.inf_PF"                ; For PF only
+        r:eval "effect.dead_HN_WitHan85 <- wound_dead.inf_HN / wound_live.inf_HN"                ; For HN only
+      r:eval "effect.dead_indvCombined_WitHan85 <- c(wound_dead.inf_SC, wound_dead.inf_PF, wound_dead.inf_HN) /c(wound_live.inf_SC, wound_live.inf_PF, wound_live.inf_HN)"
+  ; COMBINED w/ equal weight
+      r:eval "effect.dead_combined <- c(effect.dead_RZM67_norm_0.25sd, effect.dead_indvCombined_WitHan85,effect.dead_Har85)"
+    r:eval   "effect.dead          <- round( sample(effect.dead_combined[ effect.dead_combined > 0 ],100), 4)"
+  ; FIX: Make into a factor here ; CHECK: NECESSARY?
+  set attr-effect_dead_list r:get "effect.dead"
+  if sensitivity-analysis-param = "attr-effect_dead" [ set attr-effect_dead_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] attr-effect_dead_list ) ]
+  set attr-effect_dead_max        max attr-effect_dead_list   ; ATTRACTION EFFECT FOR DEAD TREES
+  
+  ;; Set tree weights vs. distance for attr-inf/dead? ; check
+  let attr-distance-range ( range 1 ( max-attraction-distance_cell + 1 ) )
+  set attr-effect_tree-weight-over-distance_list ( map [ i -> attraction-distance-decay_FUNCTION_0to1 ( i * intercell-distance ) ] attr-distance-range )
+end
+
+to setup_infection-parameters_insect-wounding
+  ;___BASE WOUNDING PROBABILITIES________________________________________________________________________________________________________________________________________________________
+  ;________ BASED ON TREE STATUS: LIVE/DEAD, INF/NON-INF ________
+
+  ; PROBABILITY OF WOUNDING - BASE VALUES BY TREE STATUS
+
+  ; Values for LIVE, NON-INFECTED trees are used as a base for (LIVE, NON-INF) and (DEAD NON-INF) PROB WOUND. They are derived from the literature.
+  ; These values are for STAND INTERIOR (NON-ROAD) TREES IN UNTHINNED and UNHARVESTED STANDS
+  ; NON-INFECTED TREES
+  ; LIVE, NON-INF TREES
+  r:eval "wound_live.nonInf <- round( sample( wound_live.nonInf.thin_overEst / effect.mgmt_fullRange, 100), 4)"        ; DERIVED: based on a ratio
+  set prob-insect-wound_live-nonInf_list r:get "wound_live.nonInf"
+  if sensitivity-analysis-param = "prob-insect-wound" [ set prob-insect-wound_live-nonInf_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-wound_live-nonInf_list ) ]
+  
+  ; DEAD, NON-INF TREES
+  r:eval "wound_dead.nonInf_base <- sample( wound_live.nonInf * effect.dead, 100)"                                  ; DERIVED:  based on ratio
+  r:eval "wound_dead.nonInf.thin_Har85 <- rbinom(100, size = 22, prob = (9/22))/22"                                 ; MEASURED: Harrington et al 1985 ; USE AS A CHECK RATHER THAN A BASE
+  r:eval "wound_dead.nonInf_Har85 <- wound_dead.nonInf.thin_Har85 / effect.mgmt_fullRange"                          ; DERIVED:  based on ratio
+  r:eval "wound_dead.nonInf <- round(sample(c(wound_dead.nonInf_base, wound_dead.nonInf_Har85), 100), 4)"             ; DERIVED + MEASURED, COMBINED
+  set prob-insect-wound_dead-nonInf_list r:get "wound_dead.nonInf"
+  if sensitivity-analysis-param = "prob-insect-wound" [ set prob-insect-wound_dead-nonInf_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-wound_dead-nonInf_list ) ]
+  
+  ; INFECTED TREES
+  ; INFECTED EFFECT - THE INCREASE IN ATTRACTIVENESS/WOUNDING POTENTIAL FOR INFECTED RELATIVE TO UNINFECTED  
+  r:eval "wound_live.inf_indvCombined_WitHan85 <-     c(wound_live.inf_SC, wound_live.inf_PF, wound_live.inf_HN)" ; Live, inf wounding rates (witc)
+  r:eval "effect.infected_live <- sample(wound_live.inf_indvCombined_WitHan85 / (wound_live.nonInf.thin_overEst / effect.mgmt_fullRange),100)"
+  r:eval "wound_dead.inf_indvCombined_WitHan85 <-     c(wound_dead.inf_SC, wound_dead.inf_PF, wound_dead.inf_HN)"
+  r:eval "effect.infected_dead <- sample(wound_dead.inf_indvCombined_WitHan85 / wound_dead.nonInf, 100)"
+  r:eval "effect.infected <- sample(c(effect.infected_dead, effect.infected_live), 100)"
+  set attr-effect_inf-vs-live_list r:get "effect.infected_live"
+  set attr-effect_inf-vs-dead_list r:get "effect.infected_dead"
+  if sensitivity-analysis-param = "attr-effect_inf" [ set attr-effect_inf-vs-live_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] attr-effect_inf-vs-live_list ) ]
+  if sensitivity-analysis-param = "attr-effect_inf" [ set attr-effect_inf-vs-dead_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] attr-effect_inf-vs-dead_list ) ]
+  set attr-effect_inf-vs-live_max   max attr-effect_inf-vs-live_list  ; ATTRACTION EFFECT FOR INFECTED TREES - Infected relative to live trees
+  set attr-effect_inf-vs-dead_max   max attr-effect_inf-vs-dead_list  ; ATTRACTION EFFECT FOR INFECTED TREES - Infected relative to dead trees
+  
+  ; LIVE, INF TREES
+  r:eval "wound_live.inf <- round( sample(c(wound_live.inf_SC,wound_live.inf_PF,wound_live.inf_HN), 100), 4)" ; MEASURED, COMBINED
+  set prob-insect-wound_live-inf_list r:get "wound_live.inf"
+  if sensitivity-analysis-param = "prob-insect-wound" [ set prob-insect-wound_live-inf_list    ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-wound_live-inf_list ) ]
+  
+  ; DEAD, INF TREES
+  r:eval "wound_dead.inf <-    round(sample(c(wound_dead.inf_SC,wound_dead.inf_PF,wound_dead.inf_HN), 100), 4)" ; MEASURED, COMBINED
+  set prob-insect-wound_dead-inf_list r:get "wound_dead.inf"
+  if sensitivity-analysis-param = "prob-insect-wound" [ set prob-insect-wound_live-inf_list ( map [ i -> limit-prob-values ( i * sensitivity-analysis-multiplier ) ] prob-insect-wound_live-inf_list ) ]
+  
+  ; CHECK: clear R when done with varbs (make sure they aren't reused)
+  
+  ; When setting infecion attraction proportionally - set the number of trees in the attraction radius necessary for the area to be an infection center (weighted based on distance using attraction decay)
+  if attr-inf-dead_version = "proportional" [ ; FIX this language, it's awful
+    if inf-center-attr-threshold = "low"    [ set inf-center-attr-threshold_n-source-trees (  8.07 * inf-center-attr-threshold_pct / 100 ) ] ; based on max weighted tree presence with density in short-rotation stands
+    if inf-center-attr-threshold = "medium" [ set inf-center-attr-threshold_n-source-trees ( 13.56 * inf-center-attr-threshold_pct / 100 ) ] ; based on mean of the max weighted tree presence between the management types
+    if inf-center-attr-threshold = "high"   [ set inf-center-attr-threshold_n-source-trees ( 19.04 * inf-center-attr-threshold_pct / 100 ) ] ; based on max weighted tree presence with initial density in long-rotation stands 
+  ]
+end
+
+
+
+
+;_____________________________________________________________________________________________________________
+; INFECTION PARAMETERS: ROOT INFECTION
+;_____________________________________________________________________________________________________________
+
+;_____________________________________________________________________________________________________________
+; INFECTION PARAMETERS: insect INFECTION
+;_____________________________________________________________________________________________________________
+to-report prob-insect-infection    [ insect age-input distance-input ]  ; FIX: IMPLEMENT
+  ; decrease added for attack probability, not finalized
+  report ( ( prob-insect-infested insect ) * ( prob-insect-transmission insect ) * ( prob-insect-dispersal insect distance-input ) ) ; CHECK FIX add attack prob
+end
+
+; CHECK: For spread-inf-alt - ; IDENTICAL TO "*infection", just with a new name to make spread-inf-alt ready-to-roll
+to-report prob-bsrd-exposure_insect    [ insect age-input distance-input ]  ; FIX: IMPLEMENT
+  ; decrease added for attack probability, not finalized
+  report ( ( prob-insect-infested insect ) * ( prob-insect-transmission insect ) * ( prob-insect-dispersal insect distance-input ) )
+end
+
+to-report prob-insect-infested     [ insect ]
+  if insect = "SC" [ report one-of prob-insect-infested_SC_list ]
+  if insect = "PF" [ report one-of prob-insect-infested_PF_list ]
+  if insect = "HN" [ report one-of prob-insect-infested_HN_list ]
+end
+
+to-report prob-insect-transmission [ insect ] 
+  if insect = "SC" [ report one-of prob-insect-transmission_SC_list ]
+  if insect = "PF" [ report one-of prob-insect-transmission_PF_list ]
+  if insect = "HN" [ report one-of prob-insect-transmission_HN_list ]
+end
+
+to-report prob-insect-dispersal    [ insect distance-input ] ; FIX: Implement (one for each insect) ; FIX, CHECK: added 0.2s to limit spread for model testing... set a real maximum value
+  ; ADD CHECK Sensitivity analysis
+  if ( insect = "SC" ) [ report ( ( 0.99991925 * exp ( -0.05078213 * distance-input ) ) ^ 2 ) ]
+  if ( insect = "PF" OR insect = "HN" ) [ report ( ( 0.93190627 * exp ( -0.01148399 * distance-input ) ) ^ 2 ) ]
+end
+
+; Function to calculate the decay of attraction with distance
+to-report attraction-distance-decay_FUNCTION [ input_attrFactor input_distance.m ]
+  ; Sigmoid function because of rapid decay with distance but imprecise host targeting by insects near the source of attraction
+  ; Decays from input-attrFactor to 1.01 over a 15-meter / 10-cell distance (parameterized by solving for the parameter B (== 0.8063413 ) )
+  report ( ( input_attrFactor - 1 ) / ( 1 + exp ( 0.8063413 * ( input_distance.m - 7.5 ) ) ) + 1 )
+end
+
+; Function to calculate the decay of attraction with distance - starts at 1 and decays to 0
+to-report attraction-distance-decay_FUNCTION_0to1 [ input_distance.m ]
+  ; Sigmoid function because of rapid decay with distance but imprecise host targeting by insects near the source of attraction
+  ; Decays from input-attrFactor to 1.01 over a 15-meter / 10-cell distance (parameterized by solving for the parameter B (== 0.8063413 ) )
+  report ( 1 / ( 1 + exp ( 0.8063413 * ( input_distance.m - 7.5 ) ) ) )
+end
+
+;____________________________________________________________________________________________________________________________
+; LIMIT PROB VALUES
+; Note: each parameter value that is a probability is bounded between 0 and 1. Because some values are randomly drawn
+; from distributions, there is a small but real chance that calculated values fall outside of this range. "limit-prob-values"
+; simply ensures that: if a value is <0, it becomes 0; if the value is >1, it becomes 1; all values between 0 and 1
+; are unchanged.
+to-report limit-prob-values [ input ]
+  ifelse ( input > 1 ) [ report 1 ] [     ; if the number is > 1, set to 1. else:
+    ifelse ( input < 0 ) [ report 0 ] [   ; if the number is < 0, set to 0. else:
+      report input                        ; report the number as originally calculated
+    ]
+  ]
+end
+; Just a test to make sure this function works
+to test-limit-prob-values ; delete test
+  ; test
+  print (word "Should be   1: " limit-prob-values  100   )
+  print (word "Should be   1: " limit-prob-values    1.1 )
+  print (word "Should be 0.5: " limit-prob-values    0.5 )
+  print (word "Should be   0: " limit-prob-values   -1.1 )
+  print (word "Should be   0: " limit-prob-values -100   )
+end
+
+; REPORT A RANDOM BETA DISTRIBUTION
+to-report random-beta [ in-alpha in-beta ]
+  let XX random-gamma in-alpha 1
+  let YY random-gamma in-beta 1
+  report XX / (XX + YY)
+end
+
+
+;____________________________________________________________________________________________________________________________

@@ -1,0 +1,588 @@
+; Developed by: Adam J Bouché for a Master of Science Thesis in Forest Ecosystems and Society at Oregon State University
+; 2017 - 2020
+
+globals [ 
+  settings_names   ; the names of the run settings to be printed as export files headers
+  settings_values  ; the values of the run settings to be printed in export files
+]
+
+; BASIC FUNCTIONS
+;____________________________________________________________________________________________________________________________
+; Creates a shortened time stamp from the current date and time to label output files
+to create-datetimestamp
+  ; MAKE A DATE STAMP IN THE FORMAT "YYYYMMDD"
+  let current-year  ( substring date-and-time 23 27 )
+  let current-month ( month-code ( substring date-and-time 19 22 ) )
+  let current-day   ( substring date-and-time 16 18 )
+  let current-date  ( word current-year current-month current-day )
+  ; MAKE A TIME STAMP IN THE FORMAT "HHMMXM" (Where "X" is either "A" or "P")
+  let current-time substring date-and-time 0 15
+  ( foreach [ 2 4 4 4 4 4 4 4 4 ]
+    [ [ y ] -> set current-time remove-item y current-time ] )
+  ; COMBINE DATE AND TIME TO MAKE A TIME STAMP
+  set current-date-and-time ( word current-date "_" current-time )
+end
+
+to-report month-code [ string-input ]
+  ; REPORT A 2-DIGIT CODE FOR THE MONTH BASED ON THE ALPHABETICAL CODE
+  if string-input = "Jan" [ report "01" ]
+  if string-input = "Feb" [ report "02" ]
+  if string-input = "Mar" [ report "03" ]
+  if string-input = "Apr" [ report "04" ]
+  if string-input = "May" [ report "05" ]
+  if string-input = "Jun" [ report "06" ]
+  if string-input = "Jul" [ report "07" ]
+  if string-input = "Aug" [ report "08" ]
+  if string-input = "Sep" [ report "09" ]
+  if string-input = "Oct" [ report "10" ]
+  if string-input = "Nov" [ report "11" ]
+  if string-input = "Dec" [ report "12" ]
+end
+
+
+
+
+; ADD OR REMOVE AGENTS FROM AGENTSETS (example
+; Add agent to agentset
+
+;to add-cell-to-set [ an-agentset ]
+;  ask agent(s)-to-add [ set an-agentset ( turtle-set an-agentset self ) ]
+;  ask agent(s)-to-add [ set an-agentset ( patch-set an-agentset self ) ]
+;end
+
+;to remove-turtle-from-set [an-agentset ]
+;  ask agent(s)-to-remove [ set an-agentset other an-agentset ]
+;end
+
+; SUBTRACT AGENTSET FROM AGENTSET
+; What it does: subtracts the agentset2 input from the agentset1 input, with the resulting agentset stored as agentset1.
+; How it works: creates a subset of the agents in agentset1, including agents that are not members of agentset2
+; How to use it: set the agentset you want to produce (the difference of the two inputs) to the reporter
+  ; E.g., I want to subtract agentset2 from agentset1 and set this difference to be agentset3. Thus, I would write:
+  ;     set agentset3 ( subtract-agentset agentset2 agentset1 )
+to-report subtract-agentset [ agentset2 agentset1 ]
+  report ( agentset1 with [ not member? self agentset2 ] )
+end
+
+
+;_____________________________________________________________________________________________________________________________
+; TIME TESTS
+;_____________________________________________________________________________________________________________________________
+
+;to profile-procedure [ procedure ]
+;  create-datetimestamp ; FIX -add
+;  let profiler-file ( word "output/prf_" procedure "_" current-date-and-time ".txt")
+;  file-open profiler-file
+;  file-print ( word "Start: " date-and-time )
+;  file-print ( word "Profiling procedure(s): " procedure )
+;  write-run-details
+;  reset-timer
+;  profiler:start
+;  ; Procedures to be run and profiled
+;  run procedure
+;  profiler:stop
+;  file-open profiler-file
+;  file-print profiler:report
+;  let total-time timer
+;  file-print ( word "End: " date-and-time )
+;  file-print ( word "Total time: " total-time )
+;  file-close-all
+;  print ( word "Profiling completed. See " profiler-file ".")
+;  profiler:reset
+;end
+;
+;to profile-procedure-run [ procedure ]
+;  create-datetimestamp ; FIX -add
+;  let profiler-file ( word "output/prf_" procedure "_" current-date-and-time ".txt")
+;  file-open profiler-file
+;  file-print ( word "Start: " date-and-time )
+;  file-print ( word "Profiling procedure(s): " procedure )
+;  file-print ( word "World dimensions: " max-pxcor " x " max-pycor )
+;  file-print ( word "Base setup: " base )
+;  file-print ( word "Configuration: " config )
+;  if config = "random" or config = "clustered" [ file-print ( word "n-stands: " n-stands ) ]
+;  if config = "blocks" [ file-print ( word "n-stands: " n-blocks ) ]
+;  reset-timer
+;  profiler:start
+;  ; Procedures to be run and profiled
+;  run procedure
+;  profiler:stop
+;  file-open profiler-file
+;  file-print profiler:report
+;  let total-time timer
+;  file-print ( word "End: " date-and-time )
+;  file-print ( word "Total time: " total-time )
+;  file-close-all
+;  print ( word "Profiling completed. See " profiler-file ".")
+;  profiler:reset
+;end
+
+to compare-time [ reps procedure1 procedure2 ]
+  ; reps - the number of times to run each procedure
+  ; procedure1 - 1st procedure to be timed (place procedure name in quotations)
+  ; procedure2 - 2nd procedure to be timed (place procedure name in quotations)
+  ; e.g. compare-time 5 "setup-random-stands" "setup-block-stands"
+  reset-timer
+  repeat reps [ run procedure1 ] ; procedure1 is the first input
+  let name1 ( word procedure1 ) ; Insert the name of procedure 1
+  let result1 timer ;; the total time (sec) it took to run procedure 1 ("reps" times)
+  reset-timer
+  repeat reps [ run procedure2 ] ; Replace "procedure2" with the name
+  let name2 ( word procedure2 ) ; Insert the name of procedure 2
+  let result2 timer ;; the total time (sec) it took to run procedure 2 ("reps" times)
+  ifelse result1 < result2 [
+    print ( word name1 " wins! It is " ( precision ( result2 / result1 ) 2 ) " times faster than " name2 "." ) ]
+    [ print ( word name2 " wins! It is " ( precision ( result1 / result2) 2 ) " times faster than " name1 "." ) ]
+end
+
+to test-time [ reps procedure ]
+  ; reps - the number of times to run each procedure
+  ; procedure - procedure to be timed (place procedure name in quotations)
+  ; e.g. test-time 5 "setup-random-stands"
+  reset-timer
+  repeat reps [ run procedure ] ; procedure1 is the first input
+  let name ( word procedure ) ; Insert the name of the procedure
+  let result timer ;; the total time (sec) it took to run the procedure ("reps" times)
+  print ( word name " total-time: "    ( precision result 5 ) " s" )
+  print ( word name " per-call time: " ( precision ( result / reps ) 5 ) " s (avg)" )
+end
+
+
+;to profile-go
+;  create-datetimestamp
+;  ; as long as the run directory exists, put the profiler file there
+;  let profiler-file ( word "output/" run-id "_prof-go.txt" )
+;  file-open profiler-file
+;  file-print run-id
+;  file-print ( word "Ticks: " ticks )
+;  file-print ( word "Start: " date-and-time )
+;  file-print ( word "Profiling procedure: go" )
+;  file-print ( word "World dimensions: " max-pxcor " x " max-pycor )
+;  if config = "random" or config = "clustered" [ file-print ( word "n-stands: " n-stands ) ]
+;  if config = "blocks" [ file-print ( word "n-stands: " n-blocks ) ]
+;  if set-world-size? = "automatic" [
+;    file-print ( word "mean stand size (acres): " stand-size_mean_acres " acres" )
+;    file-print ( word "mean stand size (ha): "    ( stand-size_mean_acres * 0.404686 ) " ha" )
+;    file-print ( word "World size:      " (stand-size_mean_acres * n-stands )       " acre(s)"   ) 
+;  ]
+;  file-print ( word "Base setup: " base )
+;  file-print ( word "Configuration: " config )
+;
+;  ; Start profiling
+;  reset-timer
+;  profiler:start
+;  go  ; Procedure(s) to be run and profiled
+;  profiler:stop
+;  file-open profiler-file
+;  file-print profiler:report
+;  let total-time timer
+;  file-print ( word "End: " date-and-time )
+;  file-print ( word "Total time: " total-time )
+;  file-close-all
+;  print ( word "Profiling completed. See " profiler-file ".")
+;  profiler:reset
+;  ; End profiling
+;end
+;___________________________________________________________________________________________________________________________________________________________________________________________________________________
+;___________________________________________________________________________________________________________________________________________________________________________________________________________________
+; EXPORT DATA
+;___________________________________________________________________________________________________________________________________________________________________________________________________________________
+
+to store-settings
+  set settings_names ( word
+    "run.id.no," "run.id," "config," "set.world.size," "world.size," "n.stands," "stand.size_mean_acres," 
+    "pct.shortRotn," "pct.longRotn," "pct.set.aside," "Rot:longRotn," "Rot:shortRotn," "replant.delay," "thinning.active," "harvest.active,"
+    "spread.setup," "spread.infection.version," "initial.infection," "pct.initial.infection," "reinitiate.infection,"
+    "max.attraction.distance_m," "max.root.distance_m," "max.insect.distance_SC_m," "max.insect.distance_PF_m," "max.insect.distance_HN_m,"
+    "background.prob.insect.dispersal," "insect.disp_background_spillover.threshold," "prob.insect.disp_background,"
+    "age.inf.suscept," "dead.attr.duration_min," "dead.attr.duration_max," "dead.host.viability.duration_min," "dead.host.viability.duration_max,"
+    "sens.analys.param," "sens.analys.mult," "prc.conservative," "prt.excludeData," "prt.discount.by.contact.type,"
+    "new.attr," "attr.inf," "attr.dead," "attr.mgmt_conservative," "attr.inf.dead_version,"
+    "inf.center.attr.threshold," "inf.center.attr.threshold_pct"
+  )
+  
+  set settings_values ( word
+    run-id-no "," run-id "," config "," set-world-size? "," world-size ","  n-stands "," stand-size_mean_acres "," 
+    pct-short-rotation "," pct-long-rotation "," pct-set-aside "," rotation:long-rotation "," rotation:short-rotation "," replant-delay "," thinning? "," harvest? ","
+    spread-setup? "," spread-infection-version? "," initial-infection "," pct-initial-infection "," reinitiate-infection? ","
+    max-attraction-distance_m "," max-root-distance_m "," max-insect-distance_SC_m "," max-insect-distance_PF_m "," max-insect-distance_HN_m ","
+    background-prob-insect-dispersal? "," insect-disp_background_stand-pct-inf-spillover-threshold "," prob-insect-disp_background ","
+    age-inf-suscept "," dead-attr-duration_min "," dead-attr-duration_max "," dead-host-viability-duration_min "," dead-host-viability-duration_max ","
+    sensitivity-analysis-param "," sensitivity-analysis-multiplier "," prc_conservative? "," prt-exclude-data? "," prt-discount-by-contact-type? ","
+    new-attr? "," attr-inf? "," attr-dead? "," attr-mgmt_conservative? "," attr-inf-dead_version ","
+    inf-center-attr-threshold "," inf-center-attr-threshold_pct
+  )
+  
+end
+
+to write-settings-file ; write all settings
+  store-settings
+  let settings-file ( word "output/" run-id "_settings.csv" )
+  file-open settings-file
+  file-print settings_names
+  file-print settings_values
+  file-close
+end  
+
+to initialize-progress-file
+  store-settings
+  set progress-file ( word "output/" run-id "_prog.csv" )
+  if file-exists? progress-file [
+    set progress-file ( word "output/" run-id "_" random 10000 "_prog.csv" )
+    print "alternative progress file used to avoid overwrite:"
+    print progress-file
+  ]
+  file-open progress-file
+  file-type ( word "run.id," "ticks," "thinning.yr," "harvest.yr,")
+    
+  if pct-short-rotation > 0 [
+    file-type (word
+      "trees_shortRotn," "trees_live_shortRotn," "trees_live.inf_shortRotn," "trees_dead.inf_shortRotn," "trees_inf_shortRotn,"
+      "trees_inf.root_shortRotn," "trees_inf.SC_shortRotn," "trees_inf.PF_shortRotn," "trees_inf.HN_shortRotn,"
+      "trees_dead_shortRotn," "trees_dead.bsrd_shortRotn," "trees_dead.harv_shortRotn,"
+    )
+  ]
+  
+  if pct-long-rotation > 0 [
+    file-type (word "trees_longRotn," "trees_live_longRotn," "trees_live.inf_longRotn," "trees_dead.inf_longRotn," "trees_inf_longRotn,"
+      "trees_inf.root_longRotn," "trees_inf.SC_longRotn," "trees_inf.PF_longRotn," "trees_inf.HN_longRotn," "trees_dead_longRotn,"
+      "trees_dead.bsrd_longRotn," "trees_dead.thin_longRotn," "trees_dead.harv_longRotn,"
+    )
+  ]
+  
+  file-type ( word "trees," "trees_live," "trees_live.inf," "trees_dead.inf," "trees_inf," "trees_inf.initial," "trees_inf.root,"
+    "trees_inf.SC," "trees_inf.PF," "trees_inf.HN,"   "trees_inf_new," "trees_inf.initial_new," "trees_inf.root_new," "trees_inf.SC_new," "trees_inf.PF_new," "trees_inf.HN_new,"
+    "trees_dead," "trees_dead.bsrd_new," "trees_dead.bsrd," "trees_dead.thin_new,"  "trees_dead.harv," "trees_dead.harv_new,"
+  )
+  file-print ( word 
+    "bsrd.inf_cumul," "bsrd.mort_cumul," "bsrd.inf_shortRotn_cumul," "bsrd.mort_shortRotn_cumul," "bsrd.inf_longRotn_cumul," "bsrd.mort_longRotn_cumul,"
+    "trees_cumul," "trees_shortRotn_cumul," "trees_longRotn_cumul"
+  )
+  
+  file-close
+end
+
+
+; WRITE THE PROGRESS FILE DATA - writes with every run where "track-run?" is activated
+to write-to-progress-file
+  store-settings
+  file-open  progress-file
+  file-type ( word run-id "," ticks ","
+    thinning-occurred? "," harvest-occurred? )
+  if pct-short-rotation > 0 [
+    file-type ( word
+      "," ( count trees_current          with [ mgmt = "short-rotation" ] )
+      "," ( count live-trees             with [ mgmt = "short-rotation" ] )
+      "," ( count live-infected-trees    with [ mgmt = "short-rotation" ] )
+      "," ( count dead-infected-trees    with [ mgmt = "short-rotation" ] )
+      "," ( count infected-trees         with [ mgmt = "short-rotation" ] )
+      "," ( count root-infected-trees    with [ mgmt = "short-rotation" ] )
+      "," ( count SC-infected-trees      with [ mgmt = "short-rotation" ] )
+      "," ( count PF-infected-trees      with [ mgmt = "short-rotation" ] )
+      "," ( count HN-infected-trees      with [ mgmt = "short-rotation" ] )
+      "," ( count dead-trees             with [ mgmt = "short-rotation" ] )
+      "," ( count bsrd-killed-trees      with [ mgmt = "short-rotation" ] )
+      "," ( count harvested-trees        with [ mgmt = "short-rotation" ] )
+    )
+  ]
+  if pct-long-rotation > 0 [
+    file-type ( word
+      "," ( count trees_current          with [ mgmt = "long-rotation" ] )
+      "," ( count live-trees             with [ mgmt = "long-rotation" ] )
+      "," ( count live-infected-trees    with [ mgmt = "long-rotation" ] )
+      "," ( count dead-infected-trees    with [ mgmt = "long-rotation" ] )
+      "," ( count infected-trees         with [ mgmt = "long-rotation" ] )
+      "," ( count root-infected-trees    with [ mgmt = "long-rotation" ] )
+      "," ( count SC-infected-trees      with [ mgmt = "long-rotation" ] )
+      "," ( count PF-infected-trees      with [ mgmt = "long-rotation" ] )
+      "," ( count HN-infected-trees      with [ mgmt = "long-rotation" ] )
+      "," ( count dead-trees             with [ mgmt = "long-rotation" ] )
+      "," ( count bsrd-killed-trees      with [ mgmt = "long-rotation" ] )
+      "," ( count thinned-trees          with [ mgmt = "long-rotation" ] )
+      "," ( count harvested-trees        with [ mgmt = "long-rotation" ] )
+    )
+  ]
+  
+  file-print ( word
+    "," (count trees)
+    "," (count live-trees)
+    "," (count live-infected-trees)
+    "," (count dead-infected-trees)
+    "," (count infected-trees)
+    "," (count trees_current with [ inf-initial? ] )                ; initial inf seeded into landscape           ; *****
+    "," (count root-infected-trees)
+    "," (count SC-infected-trees)
+    "," (count PF-infected-trees)
+    "," (count HN-infected-trees)
+    "," (count trees_current with [ newly-infected? ] )                                                   ; bsrd-infected (this year)                  ; *****
+    "," (count trees_current with [ newly-infected? AND inf-initial? ] )                                  ; bsrd-infected (this year)                  ; *****
+    "," (count trees_current with [ newly-infected? AND inf-root? ] )                                     ; bsrd-infected (this year)                  ; *****
+    "," (count trees_current with [ newly-infected? AND inf-SC?   ] )                                     ; bsrd-infected (this year)                  ; *****
+    "," (count trees_current with [ newly-infected? AND inf-PF?   ] )                                     ; bsrd-infected (this year)                  ; *****
+    "," (count trees_current with [ newly-infected? AND inf-HN?   ] )                                     ; bsrd-infected (this year)                  ; *****
+    "," (count dead-trees)
+    "," (count trees_current with [ new-bsrd-mortality? ] )                                               ; bsrd-killed (this year)                    ; *****
+    "," (count bsrd-killed-trees)
+    "," (count trees_current with [ not alive? and mort-cause = "thin" AND time-since-mort = 1 ] )         ; trees killed by thinning (this year)      ; *****
+    "," (count harvested-trees)
+    "," (count trees_current with [ not alive? and mort-cause = "harvest" and time-since-mort = 1 ] )      ; trees killed by harvest this year         ; *****
+    "," bsrd-inf_cumul
+    "," bsrd-mort_cumul
+    "," bsrd-inf_short-rotation_cumul
+    "," bsrd-mort_short-rotation_cumul
+    "," bsrd-inf_long-rotation_cumul
+    "," bsrd-mort_long-rotation_cumul
+    "," trees_cumul
+    "," trees_short-rotation_cumul
+    "," trees_long-rotation_cumul
+  )
+  file-close
+end
+
+
+to initialize-stand-data-file
+  store-settings
+  set stand-data-file ( word "output/" run-id "_standData.csv" )
+  if file-exists? stand-data-file [
+    set stand-data-file ( word "output/" run-id "_" random 10000 "_standData.csv" ) 
+  ]
+  file-open stand-data-file
+  file-print ( word "run.id,ticks,"
+    "mgmt," "stand.id," "age," "trees," "trees_live," "trees_live.inf," "trees_dead.inf,"
+    "trees_inf," "trees_inf.initial," "trees_inf.root," "trees_inf.SC," "trees_inf.PF," "trees_inf.HN,"
+    "trees_inf_new," "trees_inf.initial_new," "trees_inf.root_new," "trees_inf.SC_new," "trees_inf.PF_new," "trees_inf.HN_new,"
+    "trees_dead," "trees_dead.bsrd," "trees_dead.bsrd_new," "trees_dead.thin," "trees_dead.thin_new," "trees_dead.harv," "trees_dead.harv_new"
+  )
+  file-close
+end
+
+to export-stand-data
+  ifelse file-exists? stand-data-file [                         ; check if the data file exists
+    file-open stand-data-file                                   ; Open the file to write to it
+  ] [ initialize-stand-data-file file-open stand-data-file ]    ; or create and open the file
+  let stand-age 0
+  foreach short-rotation-stand-list [ this-stand-id ->
+    let stand-trees ( trees_current with [ stand-id = this-stand-id ] )
+    ifelse any? stand-trees with [ alive? ] [
+      set stand-age ( [ age ] of one-of stand-trees with [ alive? ] )
+    ]
+    [
+      set stand-age ( max [ age ] of stand-trees with [ not alive? ] )
+    ]
+
+    file-print ( word run-id "," ticks
+      "," "short-rotation"                                                                                      ; mgmt
+      "," this-stand-id                                                                                    ; stand ID #
+      "," stand-age                                                                                        ; stand age
+      "," ( count stand-trees )                                                                            ; n trees
+      "," ( count stand-trees with [ alive? ] )                                                            ; live trees
+      "," ( count stand-trees with [ alive? and infected? ] )                                              ; live, inf trees
+      "," ( count stand-trees with [ not alive? and infected? ] )                                          ; dead, inf
+      "," ( count stand-trees with [ infected? ] )                                                         ; inf
+      "," ( count stand-trees with [ inf-initial? ] )                                                      ; initial inf seeded into landscape           ; *****
+      "," ( count stand-trees with [ inf-root? ] )                                                         ; root inf
+      "," ( count stand-trees with [ inf-SC?   ] )                                                         ; SC infected
+      "," ( count stand-trees with [ inf-PF?   ] )                                                         ; PF infected
+      "," ( count stand-trees with [ inf-HN?   ] )                                                         ; HN infected
+      "," ( count stand-trees with [ newly-infected? ] )                                                   ; bsrd-infected (this year)                  ; *****
+      "," ( count stand-trees with [ newly-infected? AND inf-initial? ] )                                  ; bsrd-infected (this year)                  ; *****
+      "," ( count stand-trees with [ newly-infected? AND inf-root? ] )                                     ; bsrd-infected (this year)                  ; *****
+      "," ( count stand-trees with [ newly-infected? AND inf-SC?   ] )                                     ; bsrd-infected (this year)                  ; *****
+      "," ( count stand-trees with [ newly-infected? AND inf-PF?   ] )                                     ; bsrd-infected (this year)                  ; *****
+      "," ( count stand-trees with [ newly-infected? AND inf-HN?   ] )                                     ; bsrd-infected (this year)                  ; *****
+      "," ( count stand-trees with [ not alive? ] )                                                        ; dead
+      "," ( count stand-trees with [ not alive? and mort-cause = "bsrd" ] )                                ; bsrd-killed
+      "," ( count stand-trees with [ new-bsrd-mortality? ] )                                               ; bsrd-killed (this year)                    ; *****
+      "," 0                                                                                                ; stand-in for thinned trees
+      "," 0                                                                                                ; stand-in for thinned trees (this year)      ; *****
+      "," (count stand-trees with [ not alive? and mort-cause = "harvest" ] )                              ; trees killed by harvest
+      "," (count stand-trees with [ not alive? and mort-cause = "harvest" and time-since-mort = 1 ] )      ; trees killed by harvest this year ; *****
+    )
+  ]
+  foreach long-rotation-stand-list [ this-stand-id ->
+    let stand-trees ( trees_current with [ stand-id = this-stand-id ] )
+    if any? stand-trees [
+      ifelse any? stand-trees with [ alive? ] [
+        set stand-age ( [ age ] of one-of stand-trees with [ alive? ] )
+      ]
+      [
+        set stand-age ( max [ age ] of stand-trees with [ not alive? ] )
+      ]
+      file-print ( word run-id "," ticks
+        "," "long-rotation"                                                                                      ; mgmt
+        "," this-stand-id                                                                                    ; stand ID #
+        "," stand-age                                                                                        ; stand age
+        "," ( count stand-trees )                                                                            ; n trees
+        "," ( count stand-trees with [ alive? ] )                                                            ; live trees
+        "," ( count stand-trees with [ alive? and infected? ] )                                              ; live, inf trees
+        "," ( count stand-trees with [ not alive? and infected? ] )                                          ; dead, inf
+        "," ( count stand-trees with [ infected? ] )                                                         ; inf
+        "," ( count stand-trees with [ inf-initial? ] )                                                      ; initial inf seeded into landscape           ; *****
+        "," ( count stand-trees with [ inf-root? ] )                                                         ; root inf
+        "," ( count stand-trees with [ inf-SC?   ] )                                                         ; SC infected
+        "," ( count stand-trees with [ inf-PF?   ] )                                                         ; PF infected
+        "," ( count stand-trees with [ inf-HN?   ] )                                                         ; HN infected
+        "," ( count stand-trees with [ newly-infected? ] )                                                   ; bsrd-infected (this year)                  ; *****
+        "," ( count stand-trees with [ newly-infected? AND inf-initial? ] )                                  ; bsrd-infected (this year)                  ; *****
+        "," ( count stand-trees with [ newly-infected? AND inf-root? ] )                                     ; bsrd-infected (this year)                  ; *****
+        "," ( count stand-trees with [ newly-infected? AND inf-SC?   ] )                                     ; bsrd-infected (this year)                  ; *****
+        "," ( count stand-trees with [ newly-infected? AND inf-PF?   ] )                                     ; bsrd-infected (this year)                  ; *****
+        "," ( count stand-trees with [ newly-infected? AND inf-HN?   ] )                                     ; bsrd-infected (this year)                   ; *****
+        "," (count stand-trees with [ not alive? ] )                                                         ; dead
+        "," (count stand-trees with [ not alive? and mort-cause = "bsrd" ] )                                 ; bsrd-killed
+        "," ( count stand-trees with [ new-bsrd-mortality? ] )                                               ; bsrd-killed (this year)                    ; *****
+        "," (count stand-trees with [ not alive? and mort-cause = "thin" ] )                                 ; trees killed by thinning
+        "," (count stand-trees with [ not alive? and mort-cause = "thin" AND time-since-mort = 1 ] )         ; trees killed by thinning (this year)      ; *****
+        "," (count stand-trees with [ not alive? and mort-cause = "harvest" ] )                              ; trees killed by harvest
+        "," (count stand-trees with [ not alive? and mort-cause = "harvest" and time-since-mort = 1 ] )      ; trees killed by harvest this year         ; *****
+      )
+    ]
+  ]
+  file-close-all
+
+  if run-file != 0 and run-file != "" [
+    file-open  run-file
+    file-print ( word "export-stand-data completed, ticks:" ticks " @ " date-and-time " - " stand-data-file)
+    file-close-all
+  ]
+end
+
+
+; DATA EXPORT
+to initialize-tree-data-file
+  set tree-data-file ( word model-dir "output/" run-id "_t-" ticks "_treeData.csv" )
+  file-open tree-data-file
+  file-print ( word "run," "ticks," "stand.id," "mgmt," "age," "tree," "alive," "inf," "prob.root.contact_cumul,"
+    "prob.disp_cumul_sc,prob.disp_cumul_pf,prob.disp_cumul_hn," "prob.inf_root," "prob.inf_SC," "prob.inf_PF,"
+    "prob.inf_HN," "inf.initial," "inf.root," "inf.sc," "inf.pf," "inf.hn," "mort.cause"
+  )
+  file-close-all
+end
+
+to export-tree-data ; CHECK: How long does it take for a huge landscape? Estimated to be small
+  initialize-tree-data-file ; write to a new data file every time
+  if is-string? tree-data-file and tree-data-file != "" [              ; check if the data file exists, make sure it's got a determined file path, not 0 or an empty string
+    file-open tree-data-file                                         ; Open the file to write to it
+    ask trees_current [
+      ; CHECK: Only printing data for the most relevant cells
+      if infected? or prob-inf-root > 0 or prob-inf-SC > 0 or prob-inf-PF > 0 or prob-inf-HN > 0 [ ; FIX
+        file-print ( word 
+          run-id "," ticks "," stand-id "," mgmt "," age "," tree? "," alive? "," infected? "," prob-root-contact_union ","
+          prob-insect-disp_sum_SC "," prob-insect-disp_sum_PF "," prob-insect-disp_sum_HN "," prob-inf-root "," prob-inf-SC ","
+          prob-inf-PF "," prob-inf-HN "," inf-initial? "," inf-root? "," inf-SC? "," inf-PF? "," inf-HN? "," mort-cause
+        )
+      ]
+    ]
+    file-close
+  ]
+  if run-file != 0 and run-file != "" [
+    file-open  run-file
+    file-print ( word "export-tree-data completed, ticks:" ticks " @ " date-and-time )
+    file-close
+  ]
+  print ( word "export-tree-data completed, ticks:" ticks " @ " date-and-time " - " tree-data-file)
+end
+;_______________________________
+; RASTER FILES -----------------
+
+to clear-output-properties_patches ; RESETS THE VALUES EXPORTED IN RASTERS, NOT including management, stand-id, etc
+  if visualize? [ set pcolor color_patches ]
+  set p_tree           0
+  set p_age            0
+  set p_alive          0
+  set p_inf            0
+  set p_inf-root       0
+  set p_inf-SC         0
+  set p_inf-PF         0
+  set p_inf-HN         0
+  set p_mort-cause     0
+  set p_p-inf_root     0.0
+  set p_p-inf_SC       0.0
+  set p_p-inf_PF       0.0
+  set p_p-inf_HN       0.0
+end
+
+; Syncs cell and patch properties for 
+to sync-stand-properties
+  ask patches [                                                      ; clear patch properties
+    clear-output-properties_patches
+    ifelse any? cells-here [ set p_cell true ] [ set p_cell false ]  ; Check whether the patch has a cell (just a fail-safe)
+  ]
+  ask cells [                                                        ; HAVE CELLS TRANSFER RELEVANT PROPERTIES TO PATCHES
+    if tree? [ set p_tree 1 set p_age age
+      if alive?    [ set p_alive 1 ]
+      if infected? [ set p_inf   1 ]
+    ]
+    if base = "cell" [
+      set p_stand-id stand-id
+      set p_age age
+      if ( mgmt  = "short-rotation" )  [ set p_mgmt 1 ]
+      if ( mgmt  = "long-rotation" )  [ set p_mgmt 2 ]
+      if ( mgmt  = "set-aside" )  [ set p_mgmt 3 ]
+    ]
+  ]
+end
+
+to sync-inf-properties ; Syncs the infection properties of cells and patches (cells set patch values)
+  ask patches [                                                      ; clear patch properties
+    clear-output-properties_patches
+    ifelse any? cells-here [ set p_cell true ] [ set p_cell false ]  ; Check whether the patch has a cell (just a fail-safe)
+  ]
+  ask trees_current [                 ; HAVE CELLS TRANSFER RELEVANT PROPERTIES TO PATCHES
+    set p_tree 1
+    set p_age age   
+    if alive?     [ set p_alive 1 ]
+    if infected?  [ set p_inf 1 ]
+    if inf-root?  [ set p_inf-root 1 ]
+    if inf-SC?    [ set p_inf-SC 1 ]
+    if inf-PF?    [ set p_inf-PF 1 ]
+    if inf-HN?    [ set p_inf-HN 1 ]
+    if not alive? [
+      if mort-cause = "thin"    [ set p_mort-cause 1 ]
+      if mort-cause = "harvest" [ set p_mort-cause 2 ]
+      if mort-cause = "bsrd"    [ set p_mort-cause 3 ]
+    ]
+    if prob-inf-root  > 0.0           [ set p_p-inf_root      prob-inf-root ]
+    if prob-inf-SC    > 0.0           [ set p_p-inf_SC        prob-inf-SC   ]
+    if prob-inf-PF    > 0.0           [ set p_p-inf_PF        prob-inf-PF   ]
+    if prob-inf-HN    > 0.0           [ set p_p-inf_HN        prob-inf-HN   ]
+    
+  ]
+end
+
+; EXPORTS RASTERS SHOWING STANDS, INCLUDING THE FOLLOWING PROPERTIES (ONLY USED AT THE BEGINNING)
+to export-stand-map 
+  reset-timer
+  sync-stand-properties ; sync patch and cell properties
+  gis:store-dataset gis:patch-dataset p_mgmt     ( word model-dir "output/rasters/" run-id "_mgmt_"  ticks )
+  gis:store-dataset gis:patch-dataset p_stand-id ( word model-dir "output/rasters/" run-id "_sid_"   ticks )
+  gis:store-dataset gis:patch-dataset p_road     ( word model-dir "output/rasters/" run-id "_road_"  ticks )
+  gis:store-dataset gis:patch-dataset p_tree     ( word model-dir "output/rasters/" run-id "_tree_"  ticks )
+  gis:store-dataset gis:patch-dataset p_age      ( word model-dir "output/rasters/" run-id "_age_"   ticks )
+  gis:store-dataset gis:patch-dataset p_alive    ( word model-dir "output/rasters/" run-id "_alive_" ticks )
+  gis:store-dataset gis:patch-dataset p_inf      ( word model-dir "output/rasters/" run-id "_inf_"   ticks )
+  if run-file != 0 and run-file != "" [
+    file-open  run-file
+    file-print ( word "Done exporting stand map. Ticks: " ticks ". Duration: " timer "." )
+    file-close
+  ]
+  print ( word "Done exporting stand map. Ticks: " ticks ". Duration: " timer "." )
+end
+
+; EXPORT INFECTION MAP: Exports a raster grid of infections and infection probabilities
+to export-inf-map
+  sync-inf-properties ; Sync properties between cells and patches
+  gis:store-dataset gis:patch-dataset p_tree          ( word model-dir "output/rasters/" run-id "_trees_"       ticks )
+  gis:store-dataset gis:patch-dataset p_alive         ( word model-dir "output/rasters/" run-id "_alive_"       ticks )
+  gis:store-dataset gis:patch-dataset p_age           ( word model-dir "output/rasters/" run-id "_age_"         ticks )
+  gis:store-dataset gis:patch-dataset p_inf           ( word model-dir "output/rasters/" run-id "_inf_"         ticks )
+  gis:store-dataset gis:patch-dataset p_inf-root      ( word model-dir "output/rasters/" run-id "_inf-root_"    ticks )
+  gis:store-dataset gis:patch-dataset p_inf-SC        ( word model-dir "output/rasters/" run-id "_inf-SC_"      ticks )
+  gis:store-dataset gis:patch-dataset p_inf-PF        ( word model-dir "output/rasters/" run-id "_inf-PF_"      ticks )
+  gis:store-dataset gis:patch-dataset p_inf-HN        ( word model-dir "output/rasters/" run-id "_inf-HN_"      ticks )
+  gis:store-dataset gis:patch-dataset p_p-inf_root    ( word model-dir "output/rasters/" run-id "_p-inf-root_"  ticks )
+  gis:store-dataset gis:patch-dataset p_p-inf_SC      ( word model-dir "output/rasters/" run-id "_p-inf-SC_"    ticks )
+  gis:store-dataset gis:patch-dataset p_p-inf_PF      ( word model-dir "output/rasters/" run-id "_p-inf-PF_"    ticks )
+  gis:store-dataset gis:patch-dataset p_p-inf_HN      ( word model-dir "output/rasters/" run-id "_p-inf-HN_"    ticks )
+  gis:store-dataset gis:patch-dataset p_mort-cause    ( word model-dir "output/rasters/" run-id "_mort-cause_"  ticks )
+end
