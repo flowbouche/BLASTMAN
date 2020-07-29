@@ -1,6 +1,4 @@
 ## BLASTMAN model
-### Spread infection program
+### Run spread infection programs
 
-This is where the 'spread-infection' program lives. It's a binary executable (programmed in Go) that projects insect dispersal probabilities.
-
-More about the program at [this repository](https://github.com/mariowhowrites/spread-infection).
+This is where the 'spread-infection' programs for each run live, with a unique directory for each run. The sub-directory for each run should be deleted once the run has completed.
