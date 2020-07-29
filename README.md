@@ -12,8 +12,7 @@ This model runs in [NetLogo (v.6.0.4)](http://ccl.northwestern.edu/netlogo/). R 
 ### Directories
 In addition, several directories must be located in the same directory as the model ('.nlogo'):
 
-  #### /supporting_files
-  A directory containing all of the '.nls' files used by the main model file, including:
+  **/supporting_files** - A directory containing all of the '.nls' files used by the main model file, including:
 
   * basic_functions_1.10.0.0.nls
   * insect-attraction_1.10.0.0.nls
@@ -23,14 +22,11 @@ In addition, several directories must be located in the same directory as the mo
   * spread-infection
   * spread-infection.exe
 
-  #### /supporting_files/programs
-  A directory called 'programs' used to store programs and files used during model runs.
+  **/supporting_files/programs** - A directory called 'programs' used to store programs and files used during model runs.
   
-  #### /output
-  A directory where all model outputs (results) are created.
+  **/output** - A directory where all model outputs (results) are created.
   
-  #### /output/rasters
-  A directory specifically for raster model outputs ('maps' of the landscape)
+  **/output/rasters** - A directory specifically for raster model outputs ('maps' of the landscape)
 
 ### Necessary modifications to model code
 While NetLogo can work on relative paths (relative to the directory), R needs the absolute paths and the working directory for the R instance running in NetLogo cannot be changed.
