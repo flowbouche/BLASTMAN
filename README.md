@@ -7,9 +7,10 @@ Adam J. Bouché developed this model under the guidance of Dr. Klaus J. Puettman
 This ABM wa implemented in NetLogo (v.6.0.4), R (v.3.5.3), and Go (v.1.14). The most recent version of the 'spread infection' programis bundled in this repo, but the repository for the program implemented by Mario Vega is found [here](https://github.com/mariowhowrites/spread-infection).
 
 ## Using the model
-This model runs in [NetLogo v.6.0.4](http://ccl.northwestern.edu/netlogo/)
+This model runs in [NetLogo (v.6.0.4)](http://ccl.northwestern.edu/netlogo/). R must be installed on the computer (v.3.5.3 and later should work) and the R extension for NetLogo must be [configured](http://ccl.northwestern.edu/netlogo/docs/r.html). 
 
-Several directories must be located in the same directory as the model ('.nlogo'):
+### Directories
+In addition, several directories must be located in the same directory as the model ('.nlogo'):
 
   #### /supporting_files
   A directory containing all of the '.nls' files used by the main model file, including:
@@ -30,3 +31,8 @@ Several directories must be located in the same directory as the model ('.nlogo'
   
   #### /output/rasters
   A directory specifically for raster model outputs ('maps' of the landscape)
+
+### Necessary modifications to model code
+While NetLogo can work on relative paths (relative to the directory), R needs the absolute paths and the working directory for the R instance running in NetLogo cannot be changed.
+* Change in main model
+* Change in spread-infection_Go_1.10.0.0.nls
