@@ -4,7 +4,7 @@ The **BLack STain root disease landscape MANagement model (BLASTMAN)** is an age
 
 Adam J. Bouché developed this model under the guidance of Dr. Klaus J. Puettmann and Dr. David C. Shaw as a thesis for a Master of Science (MS) degree in Forest Ecosystems and Society at Oregon State University between 2017 and 2020. The thesis text can be found at [ScholarsArchive@OSU](https://ir.library.oregonstate.edu/concern/graduate_thesis_or_dissertations/c247f0268?locale=en).
 
-This ABM is implemented in NetLogo (v.6.0.4), R (v.3.5.3), and Go (v.1.14). The most recent version of the 'spread infection' programis bundled in this repo, but the repository for the program implemented by Mario Vega is found [here](https://github.com/mariowhowrites/spread-infection).
+This ABM is implemented in NetLogo (v.6.0.4), R (v.3.5.3), and Go (v.1.14). The most recent version of the 'spread infection' program is bundled in this repo, but the repository for the program implemented by Mario Vega is found [here](https://github.com/mariowhowrites/spread-infection).
 
 ## Using the model
 This model runs in [NetLogo (v.6.0.4)](http://ccl.northwestern.edu/netlogo/). R must be installed on the computer (v.3.5.3 and later should work) and the R extension for NetLogo must be [configured](http://ccl.northwestern.edu/netlogo/docs/r.html). 
