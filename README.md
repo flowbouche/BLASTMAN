@@ -28,7 +28,7 @@ In addition, several directories must be located in the same directory as the mo
   
   **/output/rasters** - A directory specifically for raster model outputs ('maps' of the landscape).
 
-### Necessary modifications to model code
+### To run this model: Necessary modifications to model code
 While NetLogo can work on relative paths (relative to the directory), R needs the absolute paths and the working directory for the R instance running in NetLogo cannot be changed (see [documentation](https://ccl.northwestern.edu/netlogo/6.0/docs/r.html)).
-* Change in main model
-* Change in spread-infection_Go_1.10.0.0.nls
+* Change paths in main model
+* Change paths in spread-infection_Go_1.10.0.0.nls
